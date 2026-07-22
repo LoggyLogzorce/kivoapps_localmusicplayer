@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Node (если позже добавишь)
+node_modules/
+
+# Temporary
+*.tmp
