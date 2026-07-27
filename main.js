@@ -15,7 +15,8 @@ function createWindow() {
     title: 'KivoPlayer'
   });
 
-  win.loadFile('index.html');
+  win.loadFile('index-test.html');
+  //win.loadFile('index.html');
   win.maximize()
 }
 

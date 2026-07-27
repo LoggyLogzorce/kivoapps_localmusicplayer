@@ -493,6 +493,19 @@
             width:0;
             opacity:0;
         }
+
+        .track-ext {
+            font-size: 12px;
+            color: var(--text-muted);
+            opacity: 0.85;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.06);
+            letter-spacing: .5px;
+            text-transform: uppercase;
+            width: fit-content;
+            margin: 0 auto;
+        }
     </style>
 </head>
 <body>
@@ -551,6 +564,7 @@
                 <div class="player-track-info">
                     <h2 id="current-track-title">Название трека</h2>
                     <div class="player-artists" id="current-track-artists">Исполнитель</div>
+                    <div class="track-ext" id="current-track-ext">MP3</div>
                 </div>
 
                 <div class="controls-container">
@@ -799,6 +813,12 @@
     folderinput.addEventListener('change', (e) => {
         processFiles(Array.from(e.target.files), null);
     });
+
+    const currentTrackExt = document.getElementById('current-track-ext');
+
+    function getTrackExt(file) {
+        return file.name.split('.').pop().toUpperCase();
+    }
 
     function processFiles(allFiles, rootName){
         const lrcFiles = allFiles.filter(f => f.name.toLowerCase().endsWith('.lrc'));
@@ -1489,6 +1509,7 @@
         playerTrackTitle.textContent = file.parsedTitle;
         playerTrackArtists.innerHTML = '';
         playerTrackArtists.appendChild(createArtistsHtml(file.parsedArtists));
+        currentTrackExt.textContent = getTrackExt(file);
         extractCover(file);
         updateLyricsButton(file);
         loadLyrics(file);
