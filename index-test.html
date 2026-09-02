@@ -1049,6 +1049,7 @@
             };
 
             await saveSettings(syncSettings);
+            syncApi.configure(syncSettings.serverUrl, syncSettings.apiToken);
             modal.style.display = 'none';
 
             showNotification('Настройки сохранены');
@@ -2064,6 +2065,9 @@
     // Загружаем настройки при старте
     (async () => {
         syncSettings = await loadSettings();
+        if (syncSettings) {
+            syncApi.configure(syncSettings.serverUrl, syncSettings.apiToken);
+        }
     })();
 
     // Показываем splash на 2с, потом скрываем и проверяем сохранённую папку

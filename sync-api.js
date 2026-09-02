@@ -1,8 +1,24 @@
-//const API_URL = "http://150.241.97.223:8000/api";
-const API_URL = "http://127.0.0.1:8080/api";
-
 class SyncApi {
+    constructor() {
+        this.serverUrl = null;
+        this.apiToken = null;
+    }
+
+    configure(serverUrl, apiToken) {
+        this.serverUrl = serverUrl;
+        this.apiToken = apiToken;
+    }
+
+    getApiUrl() {
+        return this.serverUrl ? `${this.serverUrl}/api` : '';
+    }
+
     async request(url, options = {}) {
+        if (!options.headers) options.headers = {};
+        if (this.apiToken) {
+            options.headers['Authorization'] = this.apiToken;
+        }
+
         try {
             const response = await fetch(url, options);
 
@@ -35,7 +51,7 @@ class SyncApi {
     }
 
     async checkSync(files) {
-        const result = await this.request(`${API_URL}/sync/check`, {
+        const result = await this.request(`${this.getApiUrl()}/sync/check`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -57,7 +73,7 @@ class SyncApi {
         form.append("file", file);
 
         const result = await this.request(
-            `${API_URL}/tracks/${fingerprint}`,
+            `${this.getApiUrl()}/tracks/${fingerprint}`,
             {
                 method: "POST",
                 body: form,
@@ -75,7 +91,7 @@ class SyncApi {
         form.append("file", file);
 
         const result = await this.request(
-            `${API_URL}/tracks/${audioFingerprint}/lyrics/${lrcFingerprint}`,
+            `${this.getApiUrl()}/tracks/${audioFingerprint}/lyrics/${lrcFingerprint}`,
             {
                 method: "POST",
                 body: form,
@@ -90,7 +106,7 @@ class SyncApi {
 
     async downloadTrack(fingerprint) {
         const result = await this.request(
-            `${API_URL}/tracks/${fingerprint}`
+            `${this.getApiUrl()}/tracks/${fingerprint}`
         );
 
         if (!result.ok)
@@ -104,7 +120,7 @@ class SyncApi {
 
     async downloadLyrics(audioFingerprint, lrcFingerprint) {
         const result = await this.request(
-            `${API_URL}/tracks/${audioFingerprint}/lyrics/${lrcFingerprint}`
+            `${this.getApiUrl()}/tracks/${audioFingerprint}/lyrics/${lrcFingerprint}`
         );
 
         if (!result.ok)
