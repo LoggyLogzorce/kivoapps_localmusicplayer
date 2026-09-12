@@ -5,6 +5,7 @@
     <title>KIvoPlayer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.2/color-thief.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
     <style>
         :root {
             --bg-base: #121212;
@@ -360,6 +361,98 @@
             background: rgba(255,255,255,.08);
         }
 
+        /* ── WAVE MODE ANIMATION ────────────────────────────── */
+        #wave-fx {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 500;
+            overflow: hidden;
+        }
+
+        /* Волновые круги из кнопки */
+        .wave-ripple {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid var(--brand-color);
+            transform: translate(-50%, -50%) scale(0);
+            opacity: 0;
+            animation: waveRipple 1.1s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+            box-shadow: 0 0 30px var(--brand-color), inset 0 0 20px var(--brand-color);
+        }
+
+        @keyframes waveRipple {
+            0%   { transform: translate(-50%, -50%) scale(0);   opacity: 0.9; }
+            60%  { opacity: 0.55; }
+            100% { transform: translate(-50%, -50%) scale(1);   opacity: 0; }
+        }
+
+        /* Горизонтальный свип через весь экран */
+        #wave-sweep {
+            position: absolute;
+            top: 0;
+            left: -30%;
+            width: 30%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(30, 215, 96, 0.05) 20%,
+                rgba(30, 215, 96, 0.35) 50%,
+                rgba(30, 215, 96, 0.05) 80%,
+                transparent 100%
+            );
+            filter: blur(8px);
+            opacity: 0;
+            animation: waveSweep 1.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        #wave-sweep.reverse {
+            animation: waveSweepReverse 1.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes waveSweep {
+            0%   { left: -30%;  opacity: 0; }
+            20%  { opacity: 1; }
+            80%  { opacity: 1; }
+            100% { left: 100%;  opacity: 0; }
+        }
+
+        @keyframes waveSweepReverse {
+            0%   { left: 100%;  opacity: 0; }
+            20%  { opacity: 1; }
+            80%  { opacity: 1; }
+            100% { left: -30%;  opacity: 0; }
+        }
+
+        /* Пульсация кнопки */
+        .header-btn.wave-pulse {
+            animation: wavePulse 0.6s ease;
+        }
+
+        @keyframes wavePulse {
+            0%   { transform: scale(1); }
+            30%  { transform: scale(1.25); }
+            60%  { transform: scale(0.95); }
+            100% { transform: scale(1); }
+        }
+
+        /* Лёгкое свечение на всей шапке */
+        body.wave-mode header {
+            box-shadow: 0 0 40px -10px var(--brand-color);
+            transition: box-shadow 0.6s ease;
+        }
+
+        /* Мягкий пульс активной кнопки, пока режим включён */
+        #wave-btn.active {
+            animation: waveIdle 3.5s ease-in-out infinite;
+        }
+
+        @keyframes waveIdle {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(30,215,96,0.35); }
+            50%      { box-shadow: 0 0 0 8px rgba(30,215,96,0); }
+        }
+
         body.sidebar-hidden{
             --sidebar-width:0px;
         }
@@ -374,18 +467,20 @@
         }
 
         .visualizer-glow {
-            position:absolute;
-            width:70%;
-            height:70%;
-            left:50%;
-            top:50%;
-            transform: translate(-50%,-50%);
-            border-radius:50%;
+            position: absolute;
+            width: 70%;
+            height: 70%;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) scale(1);
+            border-radius: 50%;
             background: radial-gradient(circle, var(--brand-color), transparent 70%);
-            filter:blur(90px);
-            opacity:0.25;
-            pointer-events:none;
-            transition: background 0.8s ease, opacity 0.3s ease, transform 0.1s ease;
+            filter: blur(70px);              /* было 90 — чуть дешевле, визуально то же */
+            opacity: 0.25;
+            pointer-events: none;
+            will-change: transform, opacity; /* ← подсказка компоузеру: не перерисовывать слой */
+            /* ❌ УБРАНО: transition: background 0.8s ease, opacity 0.3s ease, transform 0.1s ease; */
+            /* Оставлять transition на свойствах, которые меняются вручную — источник рывков. */
         }
         .lyrics-button {
             margin:0;
@@ -416,7 +511,7 @@
         .lyrics-container {
             width:0;
             opacity:0;
-            overflow-y:auto;
+            overflow-y:hidden;
             overflow-x:hidden;
             max-height:500px;
             white-space:pre-line;
@@ -674,6 +769,140 @@
         }
         .sync-track-badge.upload { background: rgba(30,215,96,0.15); color: #1ed760; }
         .sync-track-badge.download { background: rgba(66,135,245,0.15); color: #4287f5; }
+
+        .btn-favorite.active {
+            color: var(--brand-color);          /* или var(--brand-color) если хочешь в стиле плеера */
+        }
+        .btn-favorite:hover {
+            color: #fff;
+            transform: scale(1.05);
+        }
+        .btn-favorite.active:hover {
+            color: #ff6b85;
+        }
+
+        .btn-favorite,
+        .btn-dislike {
+            position: relative;
+            overflow: visible;
+            opacity: 0;
+            transform: scale(0.7);
+            transition: opacity .35s ease, transform .35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .btn-favorite.reveal,
+        .btn-dislike.reveal {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .header-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .header-btn.active {
+            color: var(--brand-color);
+            background: rgba(30,215,96,0.12);
+        }
+
+        /* Pop-эффект при лайке */
+        .btn-favorite.like-pop {
+            animation: likePop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes likePop {
+            0%   { transform: scale(1); }
+            25%  { transform: scale(1.35); }
+            55%  { transform: scale(0.92); }
+            80%  { transform: scale(1.08); }
+            100% { transform: scale(1); }
+        }
+
+        /* Лёгкая тряска при дизлайке */
+        .btn-dislike.dislike-shake {
+            animation: dislikeShake 0.45s ease;
+        }
+        @keyframes dislikeShake {
+            0%, 100% { transform: translateX(0); }
+            20%      { transform: translateX(-5px) rotate(-4deg); }
+            40%      { transform: translateX(5px)  rotate(4deg); }
+            60%      { transform: translateX(-3px) rotate(-2deg); }
+            80%      { transform: translateX(3px)  rotate(2deg); }
+        }
+
+        /* Контейнер для летящих частиц */
+        .like-particles {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: visible;
+        }
+
+        /* Сердечки-частицы */
+        .like-particle {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 10px;
+            height: 10px;
+            color: #ff4d6d;
+            transform: translate(-50%, -50%);
+            animation: particleBurst 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+            filter: drop-shadow(0 0 6px #ff4d6d);
+            pointer-events: none;
+        }
+
+        .like-particle svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        @keyframes particleBurst {
+            0% {
+                transform: translate(-50%, -50%) scale(0.3);
+                opacity: 0;
+            }
+            15% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            100% {
+                transform:
+                    translate(
+                        calc(-50% + var(--tx)),
+                        calc(-50% + var(--ty))
+                    )
+                    scale(0.2)
+                    rotate(var(--rot, 0deg));
+                opacity: 0;
+            }
+        }
+
+        /* Особый вариант — «осколки» вниз для дизлайка */
+        .dislike-particle {
+            color: #ff4d6d;
+            filter: drop-shadow(0 0 6px rgba(255,77,109,0.7));
+        }
+
+        /* Кольцо при лайке */
+        .like-ring {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 100%;
+            height: 100%;
+            border: 2px solid #ff4d6d;
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0.4);
+            opacity: 0;
+            animation: likeRing 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+            pointer-events: none;
+        }
+        @keyframes likeRing {
+            0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
+            100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -697,6 +926,7 @@
         <button id="toggle-sidebar" class="header-btn">☰</button>
         <button id="performance-btn" class="header-btn" title="Энергосбережение">⚡</button>
         <button id="settings-btn" class="header-btn" title="Настройки">⚙️</button>
+        <button id="wave-btn" class="header-btn" title="Режим «Волна»">🌊</button>
         <div class="logo">PLAYER</div>
     </div>
 
@@ -737,6 +967,12 @@
             </div>
 
             <div class="controls-container">
+                <button class="btn-control" id="btn-dislike" style="display: none;">
+                    <svg width="48" height="48" viewBox="0 0 16 16" style="color:#ff4d6d">
+                        <path d="M4.5 2h6.2c.6 0 1.1.4 1.3 1l1.5 4.1c.3.9-.3 1.9-1.3 1.9H9.7l.6 3.2c.1.8-.5 1.6-1.4 1.6-.5 0-1-.3-1.2-.8L5.3 9.3H4.5V2zM2.5 2h1.3v7.3H2.5C2.2 9.3 2 9.1 2 8.8V2.5c0-.3.2-.5.5-.5z"
+                            fill="currentColor"/>
+                    </svg>
+                </button>
                 <button class="btn-control" id="btn-prev">
                     <svg width="28" height="28" viewBox="0 0 16 16">
                         <path fill-rule="evenodd" clip-rule="evenodd"
@@ -761,6 +997,12 @@
                               fill="currentColor"></path>
                     </svg>
                 </button>
+                <button class="btn-control btn-favorite" id="btn-favorite" title="В рекомендации" style="display: none;">
+                    <svg width="48" height="48" viewBox="0 0 16 16">
+                        <path d="M8 14.25c-.2 0-.4-.07-.55-.2C4.1 11.15 2 8.9 2 6.3 2 4.35 3.5 2.9 5.4 2.9c1.1 0 2 .55 2.6 1.4.6-.85 1.5-1.4 2.6-1.4C12.5 2.9 14 4.35 14 6.3c0 2.6-2.1 4.85-5.45 7.75-.15.13-.35.2-.55.2z"
+                            fill="currentColor"/>
+                    </svg>
+                </button>
             </div>
             <div class="progress-container">
                 <span id="time-current">0:00</span>
@@ -780,6 +1022,8 @@
         <audio id="audio"></audio>
     </div>
 </main>
+
+<div id="wave-fx"></div>
 
 <!-- Плашка-триггер (справа внизу) -->
 <div id="sync-status" class="sync-status hidden">
@@ -901,18 +1145,16 @@
     const DB_NAME = 'PlayerDB';
     const DB_STORE = 'handles';
     const SETTINGS_STORE = 'settings';
+    const RECO_STORE = 'reco';
 
     function openDB(){
         return new Promise((res, rej) => {
-            const req = indexedDB.open(DB_NAME, 2);
+            const req = indexedDB.open(DB_NAME, 3);
             req.onupgradeneeded = e => {
                 const db = e.target.result;
-                if (!db.objectStoreNames.contains(DB_STORE)) {
-                    db.createObjectStore(DB_STORE);
-                }
-                if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
-                    db.createObjectStore(SETTINGS_STORE);
-                }
+                if (!db.objectStoreNames.contains(DB_STORE))       db.createObjectStore(DB_STORE);
+                if (!db.objectStoreNames.contains(SETTINGS_STORE)) db.createObjectStore(SETTINGS_STORE);
+                if (!db.objectStoreNames.contains(RECO_STORE))     db.createObjectStore(RECO_STORE);   // ← новое
             };
             req.onsuccess = e => res(e.target.result);
             req.onerror  = e => rej(e);
@@ -1221,6 +1463,7 @@
         });
 
         filteredTracks = [...tracks];
+        fuseDirty = true;
         currentTrackGlobalIndex = -1;
 
         if(rootName){
@@ -1360,20 +1603,24 @@
         }
     }
 
-    function updateGlow(active){
+    let smoothBass = 0;
+
+    function updateGlow(active) {
         if (!active) {
-            glowPower += (0 - glowPower) * 0.05;
+            glowPower += (0 - glowPower) * 0.06;
         } else {
             let bass = 0;
-            for(let i = 0; i < 20; i++) bass += dataArray[i] || 0;
-            bass /= 20;
-            const target = bass / 255;
+            const n = Math.min(20, dataArray.length);
+            for (let i = 0; i < n; i++) bass += dataArray[i] || 0;
+            bass /= n;
+            smoothBass += (bass - smoothBass) * 0.15;   // ← сглаживаем сырой сигнал
+            const target = smoothBass / 255;
             glowPower += (target - glowPower) * 0.08;
         }
         const scale = 0.8 + glowPower * 0.8;
         const opacity = 0.15 + glowPower * 0.35;
-        glow.style.transform = `translate(-50%,-50%) scale(${scale})`;
-        glow.style.opacity = opacity;
+        glow.style.transform = `translate(-50%,-50%) scale(${scale.toFixed(3)})`;
+        glow.style.opacity = opacity.toFixed(3);
     }
 
     function getAverageColor(imgElement) {
@@ -1537,6 +1784,101 @@
         const title = match[2].trim();
         const artists = match[1].split(/\s*,\s*|\s*&\s*|\s+feat\.?\s+|\s+ft\.?\s+/i).map(a => a.trim()).filter(Boolean);
         return { title, artists };
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  FUZZY SEARCH + TRANSLITERATION
+    // ══════════════════════════════════════════════════════
+    const TRANSLIT_MAP = {
+        'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z',
+        'и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r',
+        'с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'sch',
+        'ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya',
+        // украинские / белорусские
+        'і':'i','ї':'yi','є':'ye','ґ':'g','ў':'u'
+    };
+
+    // ══════════════════════════════════════════════════════
+    //  LAYOUT SWAP (исправление раскладки)
+    // ══════════════════════════════════════════════════════
+    const LATIN_TO_CYRILLIC = {
+        'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з',
+        '[':'х',']':'ъ',
+        'a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д',
+        ';':'ж',"'":'э',
+        'z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',
+        ',':'б','.':'ю','`':'ё'
+    };
+    const CYRILLIC_TO_LATIN = {};
+    for (const [lat, cyr] of Object.entries(LATIN_TO_CYRILLIC)) {
+        CYRILLIC_TO_LATIN[cyr] = lat;
+    }
+
+    function swapByMap(str, map) {
+        let out = '';
+        for (const ch of String(str)) {
+            const lower = ch.toLowerCase();
+            if (map[lower] !== undefined) {
+                const rep = map[lower];
+                out += (ch === lower) ? rep : rep.toUpperCase();
+            } else {
+                out += ch;
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Определяет раскладку и конвертирует строку в противоположную.
+     * Возвращает null, если строка смешанная или пустая.
+     */
+    function layoutSwap(str) {
+        if (!str) return null;
+        const hasLatin = /[a-z]/i.test(str);
+        const hasCyr   = /[а-яё]/i.test(str);
+        if (hasCyr && !hasLatin) return swapByMap(str, CYRILLIC_TO_LATIN);
+        if (hasLatin && !hasCyr) return swapByMap(str, LATIN_TO_CYRILLIC);
+        return null; // смешанный — не трогаем
+    }
+
+    function transliterate(str) {
+        const lower = String(str).toLowerCase();
+        let out = '';
+        for (const ch of lower) {
+            out += (TRANSLIT_MAP[ch] !== undefined) ? TRANSLIT_MAP[ch] : ch;
+        }
+        return out;
+    }
+
+    let fuse = null;
+    let fuseDirty = true;
+
+    function prepareTrackForSearch(file) {
+        const base = (file.parsedTitle || '') + ' ' + (file.parsedArtists || []).join(' ');
+        const lower = base.toLowerCase();
+        file._searchOriginal = lower;
+        file._searchTranslit = transliterate(lower);
+    }
+
+    function rebuildFuseIndex() {
+        for (const file of tracks) prepareTrackForSearch(file);
+
+        fuse = new Fuse(tracks, {
+            keys: [
+                { name: '_searchOriginal', weight: 2.0 },
+                { name: '_searchTranslit', weight: 1.2 }
+            ],
+            threshold: 0.4,          // 0 — точное совпадение, 1 — всё подряд
+            distance: 1000,
+            ignoreLocation: true,
+            includeScore: true,
+            minMatchCharLength: 2
+        });
+        fuseDirty = false;
+    }
+
+    function ensureFuseIndex() {
+        if (fuseDirty || !fuse) rebuildFuseIndex();
     }
 
     function parseLrc(text){
@@ -1760,6 +2102,7 @@
                 if (tags.title && tags.title.trim()) file.parsedTitle = tags.title.trim();
                 if (tags.artist && tags.artist.trim()) file.parsedArtists = tags.artist.split(/\s*,\s*|\s*&\s*|\s+feat\.?\s+|\s+ft\.?\s+/i).map(a => a.trim()).filter(Boolean);
                 file.tagLoaded = true;
+                fuseDirty = true;
                 if (tracks[currentTrackGlobalIndex] === file) {
                     playerTrackTitle.textContent = file.parsedTitle;
                     playerTrackArtists.innerHTML = "";
@@ -1855,17 +2198,17 @@
         if(isPlaying){ visualizerEnergy += (1 - visualizerEnergy) * 0.08; }
         else { visualizerEnergy += (0 - visualizerEnergy) * 0.04; }
         if (!isPlaying) {
-            updateGlow(false);
             smoothPower += (5 - smoothPower) * 0.06;
             if (smoothFrequency.length > 0) for(let i = 0; i < smoothFrequency.length; i++) smoothFrequency[i] *= 0.92;
         } else {
-            analyser.getByteFrequencyData(dataArray);
-            updateGlow(true);
             for(let i = 0; i < dataArray.length; i++) smoothFrequency[i] += (dataArray[i] - smoothFrequency[i]) * 0.12;
         }
+        let glowTick = 0;
+        
+        if ((glowTick++ & 1) === 0) {
+            updateGlow(isPlaying);
+        }
         analyser.getByteFrequencyData(dataArray);
-        updateGlow(true);
-        for(let i = 0; i < dataArray.length; i++) smoothFrequency[i] += (dataArray[i] - smoothFrequency[i]) * 0.12;
         let bass = 0;
         for(let i = 0; i < 20; i++) bass += dataArray[i];
         bass /= 20;
@@ -1887,10 +2230,20 @@
     function playTrack(file) {
         const globalIdx = tracks.indexOf(file);
         if (globalIdx === -1) return;
+
+        // ── Завершаем предыдущий трек ──
+        if (currentTrackGlobalIndex !== -1) {
+            const prev = tracks[currentTrackGlobalIndex];
+            const natural = isFinite(audio.duration) && audio.duration > 0
+                && audio.currentTime >= audio.duration - 0.5;
+            RecoEngine.onTrackStopped(prev, audio.currentTime, natural);
+        }
+
         initAudioContext();
         if (audioCtx.state === 'suspended') audioCtx.resume();
         if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
         currentTrackGlobalIndex = globalIdx;
+        sessionPlayed.add(RecoEngine.key(file));
         forceTrackRender = true;
         renderVisibleTracks();
         currentObjectUrl = URL.createObjectURL(file);
@@ -1905,6 +2258,14 @@
         updateLyrics(file);
         renderVisibleTracks();
         audio.play();
+
+        if (waveMode) {
+            const k = RecoEngine.key(file);
+            const stat = RecoEngine.stats.get(k);
+            voteState = stat ? (stat.vote || 0) : 0;
+            renderVote();
+            RecoEngine.onTrackStarted(file);
+        }
     }
 
     function updateLyrics(file){
@@ -1937,9 +2298,48 @@
     }
 
     function executeSearch(query) {
-        filteredTracks = query
-            ? tracks.filter(file => file.parsedTitle.toLowerCase().includes(query) || file.parsedArtists.some(a => a.toLowerCase().includes(query)))
-            : [...tracks];
+        const q = (query || '').toLowerCase().trim();
+
+        if (!q) {
+            filteredTracks = [...tracks];
+        } else if (typeof Fuse === 'undefined') {
+            // fallback без Fuse
+            const swapped = layoutSwap(q);
+            const queries = [q, transliterate(q)];
+            if (swapped) queries.push(swapped, transliterate(swapped));
+
+            filteredTracks = tracks.filter(file => {
+                const hay = (file.parsedTitle + ' ' + file.parsedArtists.join(' ')).toLowerCase();
+                const hayT = transliterate(hay);
+                return queries.some(v => hay.includes(v) || hayT.includes(v));
+            });
+        } else {
+            ensureFuseIndex();
+
+            // Собираем все варианты запроса
+            const queries = new Set();
+            queries.add(q);
+            queries.add(transliterate(q));
+
+            const swapped = layoutSwap(q);
+            if (swapped) {
+                queries.add(swapped);
+                queries.add(transliterate(swapped));
+            }
+
+            const scores = new Map();
+            for (const variant of queries) {
+                for (const r of fuse.search(variant)) {
+                    const prev = scores.get(r.item);
+                    if (prev === undefined || r.score < prev) scores.set(r.item, r.score);
+                }
+            }
+
+            filteredTracks = [...scores.entries()]
+                .sort((a, b) => a[1] - b[1])
+                .map(e => e[0]);
+        }
+
         renderPlaylist();
         trackListContainer.scrollTop = 0;
         forceTrackRender = true;
@@ -1957,6 +2357,9 @@
     let currentLyric = -1;
 
     function updateKaraoke(time){
+        if (!lyricsMode) {
+            return
+        }
         const file = tracks[currentTrackGlobalIndex];
         if(!file?.lyricsTimed) return;
         let index = -1;
@@ -2025,10 +2428,16 @@
         return filteredTracks.indexOf(tracks[currentTrackGlobalIndex]);
     }
 
-    btnNext.addEventListener('click', () => {
+    function playNext() {
+        if (waveMode) {
+            const next = RecoEngine.popNext();
+            if (next) return playTrack(next);
+        }
         const fi = getFilteredIndex();
         if (fi !== -1 && fi + 1 < filteredTracks.length) playTrack(filteredTracks[fi + 1]);
-    });
+    }
+
+    btnNext.addEventListener('click', () => playNext());
 
     btnPrev.addEventListener('click', () => {
         const fi = getFilteredIndex();
@@ -2036,10 +2445,7 @@
         if (fi > 0) playTrack(filteredTracks[fi - 1]);
     });
 
-    audio.addEventListener('ended', () => {
-        const fi = getFilteredIndex();
-        if (fi !== -1 && fi + 1 < filteredTracks.length) playTrack(filteredTracks[fi + 1]);
-    });
+    audio.addEventListener('ended', () => playNext());
 
     audio.addEventListener('timeupdate', () => {
         const currentTime = audio.currentTime;
@@ -2189,6 +2595,131 @@
         syncProgressBar.style.width = '0%';
         syncModalStatus.textContent = 'Подготовка...';
     }
+
+    const btnFavorite = document.getElementById('btn-favorite');
+    const btnDislike = document.getElementById('btn-dislike');
+
+    const HEART_SVG = `<svg width="48" height="48" viewBox="0 0 16 16" style="color:#ff4d6d">
+        <path d="M8 14.25c-.2 0-.4-.07-.55-.2C4.1 11.15 2 8.9 2 6.3 2 4.35 3.5 2.9 5.4 2.9c1.1 0 2 .55 2.6 1.4.6-.85 1.5-1.4 2.6-1.4C12.5 2.9 14 4.35 14 6.3c0 2.6-2.1 4.85-5.45 7.75-.15.13-.35.2-.55.2z"
+              fill="currentColor"/>
+    </svg>`;
+    const HEART_OFF_SVG = `<svg width="48" height="48" viewBox="0 0 16 16">
+        <path d="M8 14.25c-.2 0-.4-.07-.55-.2C4.1 11.15 2 8.9 2 6.3 2 4.35 3.5 2.9 5.4 2.9c1.1 0 2 .55 2.6 1.4.6-.85 1.5-1.4 2.6-1.4C12.5 2.9 14 4.35 14 6.3c0 2.6-2.1 4.85-5.45 7.75-.15.13-.35.2-.55.2z"
+              fill="currentColor"/>
+    </svg>`;
+
+    const DISLIKE_SVG = `<svg width="48" height="48" viewBox="0 0 16 16" style="color:#ff4d6d">
+        <path d="M4.5 2h6.2c.6 0 1.1.4 1.3 1l1.5 4.1c.3.9-.3 1.9-1.3 1.9H9.7l.6 3.2c.1.8-.5 1.6-1.4 1.6-.5 0-1-.3-1.2-.8L5.3 9.3H4.5V2zM2.5 2h1.3v7.3H2.5C2.2 9.3 2 9.1 2 8.8V2.5c0-.3.2-.5.5-.5z"
+            fill="currentColor"/>
+    </svg>`;
+    const DISLIKE_SVG_OFF_SVG = `<svg width="48" height="48" viewBox="0 0 16 16">
+        <path d="M4.5 2h6.2c.6 0 1.1.4 1.3 1l1.5 4.1c.3.9-.3 1.9-1.3 1.9H9.7l.6 3.2c.1.8-.5 1.6-1.4 1.6-.5 0-1-.3-1.2-.8L5.3 9.3H4.5V2zM2.5 2h1.3v7.3H2.5C2.2 9.3 2 9.1 2 8.8V2.5c0-.3.2-.5.5-.5z"
+            fill="currentColor"/>
+    </svg>`;
+
+    let voteState = 0;
+
+    function renderVote() {
+        btnFavorite.innerHTML = voteState === 1  ? HEART_SVG      : HEART_OFF_SVG;
+        btnDislike.innerHTML  = voteState === -1 ? DISLIKE_SVG : DISLIKE_SVG_OFF_SVG;
+        btnFavorite.classList.toggle('active', voteState === 1);
+        btnDislike.classList.toggle('active',  voteState === -1);
+    }
+
+    btnFavorite.addEventListener('click', () => {
+        const wasActive = voteState === 1;
+        voteState = wasActive ? 0 : 1;
+        renderVote();
+
+        // Анимация только при постановке лайка (не при снятии)
+        if (!wasActive) animateVote(btnFavorite, 'like');
+
+        if (waveMode && currentTrackGlobalIndex !== -1) {
+            RecoEngine.onVote(tracks[currentTrackGlobalIndex], voteState);
+        }
+    });
+
+    btnDislike.addEventListener('click', () => {
+        const wasActive = voteState === -1;
+        voteState = wasActive ? 0 : -1;
+        renderVote();
+
+        if (!wasActive) animateVote(btnDislike, 'dislike');
+
+        if (waveMode && currentTrackGlobalIndex !== -1) {
+            RecoEngine.onVote(tracks[currentTrackGlobalIndex], voteState);
+            setTimeout(() => playNext(), 1500)
+        }
+    });
+
+    renderVote(); // первичная отрисовка
+
+    // ══════════════════════════════════════════════════════
+    //  LIKE / DISLIKE ANIMATION
+    // ══════════════════════════════════════════════════════
+    const HEART_MINI_SVG = `<svg viewBox="0 0 16 16"><path d="M8 14.25c-.2 0-.4-.07-.55-.2C4.1 11.15 2 8.9 2 6.3 2 4.35 3.5 2.9 5.4 2.9c1.1 0 2 .55 2.6 1.4.6-.85 1.5-1.4 2.6-1.4C12.5 2.9 14 4.35 14 6.3c0 2.6-2.1 4.85-5.45 7.75-.15.13-.35.2-.55.2z" fill="currentColor"/></svg>`;
+
+    function burstHearts(button, count = 8, mode = 'like') {
+        const layer = document.createElement('div');
+        layer.className = 'like-particles';
+        button.appendChild(layer);
+
+        for (let i = 0; i < count; i++) {
+            const p = document.createElement('div');
+            p.className = 'like-particle' + (mode === 'dislike' ? ' dislike-particle' : '');
+            p.innerHTML = HEART_MINI_SVG;
+
+            // Разлёт по кругу для лайка, вниз — для дизлайка
+            let angle, radius, rot;
+            if (mode === 'like') {
+                angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+                radius = 35 + Math.random() * 30;
+            } else {
+                // вниз и немного в стороны
+                angle = Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.9;
+                radius = 40 + Math.random() * 25;
+            }
+            const tx = Math.cos(angle) * radius;
+            const ty = Math.sin(angle) * radius;
+            rot = (Math.random() - 0.5) * 180;
+
+            p.style.setProperty('--tx', tx + 'px');
+            p.style.setProperty('--ty', ty + 'px');
+            p.style.setProperty('--rot', rot + 'deg');
+            p.style.animationDelay = (i * 25) + 'ms';
+            p.style.fontSize = (8 + Math.random() * 6) + 'px';
+            p.style.width = p.style.height = (10 + Math.random() * 6) + 'px';
+
+            layer.appendChild(p);
+            p.addEventListener('animationend', () => p.remove(), { once: true });
+        }
+
+        // Кольцо — только при лайке
+        if (mode === 'like') {
+            const ring = document.createElement('div');
+            ring.className = 'like-ring';
+            button.appendChild(ring);
+            ring.addEventListener('animationend', () => ring.remove(), { once: true });
+        }
+
+        // Убираем контейнер, когда все частицы догорели
+        setTimeout(() => layer.remove(), 1400);
+    }
+
+    function animateVote(button, mode) {
+        if (mode === 'like') {
+            button.classList.remove('like-pop');
+            void button.offsetWidth;   // форс reflow
+            button.classList.add('like-pop');
+            burstHearts(button, 10, 'like');
+        } else if (mode === 'dislike') {
+            button.classList.remove('dislike-shake');
+            void button.offsetWidth;
+            button.classList.add('dislike-shake');
+            burstHearts(button, 6, 'dislike');
+        }
+    }
 </script>
+<script src="wave_mode.js"></script>
 </body>
 </html>
