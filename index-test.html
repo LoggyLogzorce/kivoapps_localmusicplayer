@@ -141,6 +141,7 @@
             padding: 0 20px;
             box-sizing: border-box;
             z-index: 10;
+            transition: box-shadow .6s ease;
         }
 
         .header-left{
@@ -192,6 +193,12 @@
             transition: background-color 0.5s, transform 0.2s; white-space: nowrap;
             margin-left:auto;
         }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-left: auto;
+        }
         .file-upload-label:hover { transform: scale(1.03); }
         input[type="file"] { display: none; }
 
@@ -235,10 +242,15 @@
 
         .track-num { color: var(--text-muted); text-align: right; font-size: 13px; }
         .track-info { display: flex; flex-direction: column; overflow: hidden; }
+
         .track-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
         .track-artists, .player-artists { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .artist-link { cursor: pointer; }
         .artist-link:hover { color: var(--brand-color); text-decoration: underline; }
+
+        /* жанр в строке трека: «Кино · Рок» */
+        .ta-genre { color: var(--brand-color); opacity: .65; margin-left: 2px; transition: color .5s; }
+        .ta-genre:empty { display: none; }
 
         .content {
             grid-area: content; padding: 0px; display: flex; align-items: center; justify-content: center;
@@ -361,6 +373,34 @@
             background: rgba(255,255,255,.08);
         }
 
+        /* Кнопка «Очередь и история» — появляется в режиме волны */
+        #queue-btn {
+            position: relative;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        body.wave-mode #queue-btn { display: flex; }
+        #queue-btn svg { width: 20px; height: 20px; display: block; }
+        #queue-btn.active {
+            color: var(--brand-color);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .queue-badge {
+            position: absolute;
+            top: 3px; right: 3px;
+            min-width: 15px; height: 15px; padding: 0 3px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            background: var(--brand-color);
+            color: #000;
+            font-size: 9px; font-weight: 800; line-height: 15px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            transition: background-color .5s;
+        }
+        .queue-badge:empty { display: none; }
+
         /* ── WAVE MODE ANIMATION ────────────────────────────── */
         #wave-fx {
             position: fixed;
@@ -462,9 +502,6 @@
             border-right-color: transparent;
             pointer-events: none;
         }
-        body.sidebar-hidden .header-btn {
-            transform: rotate(180deg);
-        }
 
         .visualizer-glow {
             position: absolute;
@@ -496,11 +533,66 @@
             background:var(--brand-color);
             color:#000;
         }
-        .lyrics-button.hidden {
-            opacity: 0;
-            transform: scale(.9);
-            pointer-events: none;
+        .lyrics-button.hidden,
+        .lyrics-edit-button.hidden {
+            display: none;
         }
+        .lyrics-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .lyrics-edit-button {
+            margin: 0;
+            background: transparent;
+            border: 1px solid #3a3a3a;
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: border-color .25s ease, color .25s ease, background .25s ease;
+        }
+        .lyrics-edit-button:hover {
+            border-color: var(--brand-color);
+            color: var(--brand-color);
+        }
+        .lyrics-edit-button.has-edit {
+            border-color: var(--brand-color);
+            color: var(--brand-color);
+        }
+        /* крестик закрытия режима текста */
+        .lyrics-close {
+            position: absolute;
+            top: 18px;
+            right: 26px;
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: rgba(18, 18, 18, 0.72);
+            backdrop-filter: blur(10px);
+            color: #b3b3b3;
+            font-size: 16px;
+            line-height: 1;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 30;
+            transition: color .2s ease, border-color .2s ease, background .2s ease, transform .15s ease;
+        }
+        body.lyrics-mode .lyrics-close { display: flex; }
+        body.wave-view-open .lyrics-close { display: none; }
+        .lyrics-close:hover {
+            color: #fff;
+            border-color: var(--brand-color);
+            background: rgba(28, 28, 28, 0.92);
+        }
+        .lyrics-close:active { transform: scale(.94); }
         .player-main {
             width:420px;
             flex-shrink:0;
@@ -547,11 +639,15 @@
             word-wrap: break-word;
             overflow-wrap: break-word;
             cursor: pointer;
+            /* Метрики текста одинаковы во всех состояниях: активная строка
+               не должна менять ширину глифов, иначе переносы слов прыгают. */
         }
         .lyric-line:hover { opacity:0.5; }
         .lyric-line.active {
             color:var(--brand-color);
-            font-weight: bold;
+            /* «жирность» — обводкой: она рисуется поверх глифов и не меняет
+               ширину текста, поэтому строка не перестраивается */
+            -webkit-text-stroke: .7px currentColor;
             transform: scale(1.15);
         }
 
@@ -589,6 +685,177 @@
             opacity:0;
         }
 
+        /* ══════════════════════════════════════════════════
+           WAVE MODE — полноэкранный вид: плеер + очередь/история
+           ══════════════════════════════════════════════════ */
+        body.wave-view-open { --sidebar-width: 0px; }
+        body.wave-view-open .sidebar {
+            width: 0;
+            opacity: 0;
+            border-right-color: transparent;
+            pointer-events: none;
+        }
+
+        body.wave-view-open .content {
+            display: grid;
+            grid-template-columns: minmax(0, 500px) minmax(0, 1fr);
+            gap: 26px;
+            padding: 26px 30px;
+            align-items: stretch;
+        }
+
+        body.wave-view-open .player-card {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: none;
+            height: 100%;
+            box-sizing: border-box;
+            padding: 30px;
+            gap: 0;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        body.wave-view-open .player-main {
+            width: 100%;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body.wave-view-open .art-container { width: 280px; height: 280px; }
+        body.wave-view-open #current-track-title { font-size: 28px; }
+        body.wave-view-open .lyrics-container { display: none !important; }
+        body.wave-view-open .lyrics-section { display: none; }
+        body.wave-view-open .search-container { display: none; }
+
+        .wave-view {
+            display: none;
+            flex-direction: column;
+            min-width: 0;
+            min-height: 0;
+            background: rgba(18, 18, 18, 0.72);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 16px;
+            overflow: hidden;
+            z-index: 10;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+        }
+        body.wave-view-open .wave-view { display: flex; }
+
+        .wave-view-head {
+            display: flex; align-items: flex-end; justify-content: space-between;
+            gap: 20px; padding: 22px 28px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            flex-shrink: 0;
+        }
+        .wave-view-title { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; line-height: 1; }
+        .wave-view-sub { margin-top: 8px; font-size: 12px; color: var(--text-muted); letter-spacing: 0.02em; }
+        .wave-view-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+        .wave-view-badge {
+            display: flex; align-items: center; flex-shrink: 0;
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.16em; color: var(--brand-color);
+            transition: color .5s;
+        }
+        .wave-view-close {
+            width: 28px; height: 28px; padding: 0;
+            border-radius: 8px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text-muted);
+            font-size: 12px; line-height: 1; cursor: pointer;
+            transition: .2s;
+        }
+        .wave-view-close:hover {
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .wave-dot {
+            display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+            background: var(--brand-color); margin-right: 8px;
+            box-shadow: 0 0 10px var(--brand-color);
+            animation: waveDotPulse 2.2s ease-in-out infinite;
+        }
+        @keyframes waveDotPulse {
+            0%, 100% { opacity: .35; transform: scale(.8); }
+            50%      { opacity: 1;   transform: scale(1.15); }
+        }
+
+        .wave-view-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 4px 16px 20px;
+        }
+
+        .wv-section + .wv-section {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .wv-section-title {
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 14px 5px;
+            font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.16em; color: var(--text-muted);
+        }
+        .wv-count {
+            color: var(--brand-color); letter-spacing: 0;
+            font-variant-numeric: tabular-nums; transition: color .5s;
+        }
+
+        .wv-row {
+            display: grid; grid-template-columns: 34px minmax(0, 1fr) auto;
+            gap: 16px; align-items: center;
+            padding: 10px 14px; border-radius: 10px; cursor: pointer;
+            transition: background-color .18s ease, opacity .18s ease;
+        }
+        .wv-row:hover { background-color: rgba(255, 255, 255, 0.05); }
+
+        .wv-num {
+            font-size: 11.5px; color: var(--text-muted); text-align: right;
+            font-variant-numeric: tabular-nums; letter-spacing: 0.04em; opacity: .7;
+        }
+        .wv-body { min-width: 0; }
+        .wv-title {
+            font-size: 16px; font-weight: 500; line-height: 1.25;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            transition: color .5s;
+        }
+        .wv-artist {
+            margin-top: 3px; font-size: 12px; color: var(--text-muted);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .wv-genre { color: var(--brand-color); opacity: .65; transition: color .5s; }
+        .wv-tag {
+            font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.14em; color: var(--brand-color);
+            padding: 3px 8px; border: 1px solid currentColor; border-radius: 999px;
+            opacity: .85; transition: color .5s;
+        }
+
+        .wv-row.is-current { background-color: rgba(255, 255, 255, 0.045); }
+        .wv-row.is-current .wv-title { color: var(--brand-color); font-weight: 600; }
+        .wv-row.is-current .wv-num { color: var(--brand-color); opacity: 1; }
+        .wv-row.is-played { opacity: .62; }
+        .wv-row.is-played:hover { opacity: 1; }
+        .wv-row.is-future { opacity: .34; }
+
+        .wv-empty { padding: 10px 14px 14px; font-size: 12.5px; color: var(--text-muted); opacity: .6; }
+
+        @media (max-width: 1000px) {
+            body.wave-view-open .content {
+                grid-template-columns: minmax(0, 1fr);
+                grid-template-rows: auto minmax(0, 1fr);
+                padding: 18px;
+                gap: 16px;
+            }
+            body.wave-view-open .player-card { height: auto; }
+            body.wave-view-open .wave-view { min-height: 260px; }
+        }
+
         .track-ext {
             font-size: 12px;
             color: var(--text-muted);
@@ -601,6 +868,137 @@
             width: fit-content;
             margin: 0 auto;
         }
+
+        /* ── жанры ────────────────────────────────────────────── */
+        .track-badges {
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px; flex-wrap: wrap;
+        }
+        .track-badges .track-ext { margin: 0; }
+
+        .track-genre {
+            font-family: inherit;
+            font-size: 12px;
+            color: var(--brand-color);
+            padding: 4px 11px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.09);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background .2s, border-color .2s, color .5s, transform .2s;
+        }
+        .track-genre:hover { background: rgba(255,255,255,0.13); transform: translateY(-1px); }
+        .track-genre[hidden] { display: none; }
+
+        /* ── шапка сайдбара: имя папки + кнопка жанров ─────────── */
+        .sidebar-top {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 12px 8px 20px;
+            flex: 0 0 auto;
+            min-height: 34px;
+        }
+        .sidebar-top .sidebar-header {
+            padding: 0; margin: 0;
+            flex: 1 1 auto; min-width: 0;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        .genre-btn {
+            flex: 0 0 auto;
+            display: inline-flex; align-items: center; gap: 6px;
+            height: 26px; padding: 0 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-muted);
+            font-family: inherit; font-size: 12px; font-weight: 500;
+            cursor: pointer; white-space: nowrap;
+            transition: background .18s, color .18s, border-color .18s;
+        }
+        .genre-btn:hover { background: rgba(255,255,255,0.13); color: var(--text-main); }
+        .genre-btn[hidden] { display: none; }
+        .genre-btn.is-active {
+            color: var(--brand-color);
+            border-color: var(--brand-color);
+            background: rgba(255,255,255,0.09);
+            transition: background .18s, color .5s, border-color .5s;
+        }
+        .genre-btn .gb-label {
+            max-width: 110px; overflow: hidden; text-overflow: ellipsis;
+        }
+        .genre-btn .gb-chev { opacity: .65; transition: transform .22s ease; }
+        .genre-btn.is-open .gb-chev { transform: rotate(180deg); }
+
+        /* ── меню жанров ──────────────────────────────────────── */
+        .genre-pop {
+            position: fixed; z-index: 9250;
+            display: flex; flex-direction: column;
+            background: #181818;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 14px;
+            box-shadow: 0 18px 48px rgba(0,0,0,.62);
+            overflow: hidden;
+            animation: genrePopIn .16s ease-out;
+        }
+        .genre-pop[hidden] { display: none; }
+        @keyframes genrePopIn {
+            from { opacity: 0; transform: translateY(-6px) scale(.985); }
+        }
+
+        .genre-pop-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 11px 14px 7px;
+            flex: 0 0 auto;
+        }
+        .genre-pop-title {
+            font-size: 10.5px; font-weight: 700; letter-spacing: .12em;
+            text-transform: uppercase; color: var(--text-muted);
+        }
+        .genre-reset {
+            background: none; border: none; padding: 2px 6px; border-radius: 7px;
+            color: var(--brand-color); font-family: inherit; font-size: 12px;
+            cursor: pointer; transition: background .18s, color .5s;
+        }
+        .genre-reset:hover { background: rgba(255,255,255,0.09); }
+        .genre-reset[hidden] { display: none; }
+
+        .genre-pop-list {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+            padding: 0 12px 12px;
+            overflow-y: auto; overscroll-behavior: contain;
+            scrollbar-width: thin;
+        }
+        .genre-pop-list::-webkit-scrollbar { width: 6px; }
+        .genre-pop-list::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,.14); border-radius: 999px;
+        }
+
+        .genre-chip {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 8px; width: 100%;
+            font-family: inherit;
+            font-size: 12px; line-height: 1;
+            padding: 8px 11px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.05);
+            color: var(--text-muted);
+            border: 1px solid transparent;
+            cursor: pointer; white-space: nowrap;
+            transition: background .18s, color .18s, border-color .18s;
+        }
+        .genre-chip .gc-t {
+            overflow: hidden; text-overflow: ellipsis;
+        }
+        .genre-chip:hover { background: rgba(255,255,255,0.11); color: var(--text-main); }
+        .genre-chip.is-all { grid-column: 1 / -1; }
+        .genre-chip.active {
+            background: rgba(255,255,255,0.16);
+            color: var(--text-main);
+            border-color: var(--brand-color);
+            transition: background .18s, color .18s, border-color .5s;
+        }
+        .genre-chip .gc-n { opacity: .55; font-size: 11px; flex: 0 0 auto; }
 
         .sync-notification {
             position: fixed;
@@ -903,6 +1301,462 @@
             0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
             100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
         }
+
+        /* ══════════════════════════════════════════════════
+           MOTION — анимации открытия режимов
+           ══════════════════════════════════════════════════ */
+
+        /* ── Очередь и история: панель выезжает справа ── */
+        body.wave-view-opening .wave-view {
+            animation: waveViewIn .46s cubic-bezier(.22, 1, .36, 1) both;
+        }
+        body.wave-view-closing .wave-view {
+            animation: waveViewOut .22s cubic-bezier(.4, 0, 1, 1) forwards;
+        }
+        @keyframes waveViewIn {
+            from { opacity: 0; transform: translateX(48px) scale(.975); }
+            to   { opacity: 1; transform: none; }
+        }
+        @keyframes waveViewOut {
+            from { opacity: 1; transform: none; }
+            to   { opacity: 0; transform: translateX(48px) scale(.98); }
+        }
+
+        /* ── Плеер переезжает влево / возвращается ── */
+        body.wave-view-opening .player-card {
+            animation: playerShiftIn .5s cubic-bezier(.22, 1, .36, 1) both;
+        }
+        body.wave-view-closing .player-card {
+            animation: playerFadeOut .2s ease forwards;
+        }
+        body.wave-view-settling .player-card {
+            animation: playerSettle .38s cubic-bezier(.22, 1, .36, 1);
+        }
+        @keyframes playerShiftIn {
+            from { opacity: 0; transform: translateX(110px) scale(.97); }
+            to   { opacity: 1; transform: none; }
+        }
+        @keyframes playerFadeOut {
+            from { opacity: 1; transform: none; }
+            to   { opacity: 0; transform: scale(.98); }
+        }
+        @keyframes playerSettle {
+            from { opacity: 0; transform: scale(.97); }
+            to   { opacity: 1; transform: none; }
+        }
+
+        /* ── Строки списка вбегают по очереди ── */
+        body.wave-view-opening .wv-section-title,
+        body.wave-view-opening .wv-row {
+            animation: wvRowIn .4s cubic-bezier(.22, 1, .36, 1) backwards;
+        }
+        @keyframes wvRowIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: none; }
+        }
+
+        /* ── Режим текста ── */
+        body.lyrics-mode .player-card {
+            animation: lyricsCardIn .45s cubic-bezier(.22, 1, .36, 1);
+        }
+        body.lyrics-mode .lyrics-container {
+            animation: lyricsIn .5s cubic-bezier(.22, 1, .36, 1) .06s both;
+        }
+        body.lyrics-mode .lyric-line {
+            animation: lyricLineIn .4s ease backwards;
+        }
+        @keyframes lyricsCardIn {
+            from { opacity: .55; transform: scale(.975); }
+            to   { opacity: 1; transform: none; }
+        }
+        @keyframes lyricsIn {
+            from { opacity: 0; transform: translateX(26px); }
+            to   { opacity: 1; transform: none; }
+        }
+        @keyframes lyricLineIn {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+
+        /* ── Модалка настроек ── */
+        #settings-modal { animation: overlayIn .22s ease; }
+        #settings-modal > div { animation: modalPop .3s cubic-bezier(.22, 1, .36, 1); }
+        @keyframes overlayIn {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+        @keyframes modalPop {
+            from { opacity: 0; transform: translateY(14px) scale(.97); }
+            to   { opacity: 1; transform: none; }
+        }
+
+        /* ══════════════════════════════════════════════════
+           РЕДАКТОР ТАЙМИНГОВ LRC
+           ══════════════════════════════════════════════════ */
+        #lrc-editor {
+            position: fixed;
+            inset: 0;
+            z-index: 12000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.72);
+            backdrop-filter: blur(10px);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        #lrc-editor.open { display: flex; }
+        body.lrc-editor-open { overflow: hidden; }
+        .lrc-editor-panel {
+            width: min(900px, 100%);
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            background: #151515;
+            border: 1px solid #2e2e2e;
+            border-radius: 16px;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+            overflow: hidden;
+            animation: modalPop .3s cubic-bezier(.22, 1, .36, 1);
+        }
+        .lrc-editor-head {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 20px 22px 14px;
+        }
+        .lrc-editor-head-text { min-width: 0; flex: 1; }
+        .lrc-editor-title { color: #fff; font-size: 17px; font-weight: 600; }
+        .lrc-editor-sub {
+            color: #8a8a8a;
+            font-size: 12.5px;
+            margin-top: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .lrc-close {
+            background: transparent;
+            border: none;
+            color: #777;
+            font-size: 18px;
+            line-height: 1;
+            padding: 4px 6px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: color .2s, background .2s;
+        }
+        .lrc-close:hover { color: #fff; background: #262626; }
+
+        .lrc-transport {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 9px 18px;
+            background: #101010;
+            border-top: 1px solid #232323;
+            border-bottom: 1px solid #232323;
+        }
+        .lrc-play {
+            flex: 0 0 auto;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: var(--brand-color);
+            color: #000;
+            font-size: 13px;
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            transition: transform .15s, opacity .2s;
+        }
+        .lrc-play:hover { opacity: .88; }
+        .lrc-play:active { transform: scale(.94); }
+        .lrc-time-now,
+        .lrc-time-dur {
+            color: #9a9a9a;
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+            min-width: 38px;
+            text-align: center;
+        }
+        .lrc-seek {
+            flex: 1;
+            min-width: 0;
+            accent-color: var(--brand-color);
+            cursor: pointer;
+        }
+
+        .lrc-editor-tools {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 18px;
+            border-bottom: 1px solid #232323;
+        }
+        .lrc-tool {
+            background: #232323;
+            border: 1px solid #333;
+            color: #dcdcdc;
+            padding: 7px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: border-color .2s, color .2s, background .2s;
+        }
+        .lrc-tool:hover { border-color: var(--brand-color); color: var(--brand-color); }
+        .lrc-tool:active { transform: scale(.97); }
+        .lrc-status {
+            margin-left: auto;
+            font-size: 12px;
+            color: #7d7d7d;
+            text-align: right;
+        }
+        .lrc-status.dirty { color: #e0b355; }
+        .lrc-status.saved { color: var(--brand-color); }
+
+        /* вставка обычного текста песни */
+        .lrc-paste {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 14px 18px;
+            border-bottom: 1px solid #232323;
+            background: #101010;
+        }
+        .lrc-paste[hidden] { display: none; }
+        .lrc-paste-area {
+            width: 100%;
+            min-height: 118px;
+            max-height: 220px;
+            resize: vertical;
+            background: #1a1a1a;
+            border: 1px solid #303030;
+            border-radius: 10px;
+            color: #fff;
+            padding: 10px 12px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            box-sizing: border-box;
+            transition: border-color .2s, background .2s;
+        }
+        .lrc-paste-area:focus { outline: none; border-color: var(--brand-color); background: #202020; }
+        .lrc-paste-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .lrc-paste-hint {
+            color: #757575;
+            font-size: 12px;
+            margin-right: auto;
+        }
+        .lrc-paste-buttons { display: flex; gap: 10px; }
+
+        .lrc-editor-rows {
+            flex: 1;
+            min-height: 120px;
+            overflow-y: auto;
+            padding: 10px 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .lrc-editor-rows::-webkit-scrollbar { width: 8px; }
+        .lrc-editor-rows::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        .lrc-row {
+            display: grid;
+            grid-template-columns: 40px 92px minmax(0, 1fr) auto;
+            gap: 8px;
+            align-items: center;
+            padding: 4px 6px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            transition: background .15s, border-color .15s;
+        }
+        .lrc-row:hover { background: rgba(255, 255, 255, 0.035); }
+        .lrc-row.selected {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+        .lrc-row.is-current { box-shadow: inset 2px 0 0 var(--brand-color); }
+        .lrc-row.is-current .lrc-num { color: var(--brand-color); }
+        .lrc-row.stamped {
+            border-color: var(--brand-color);
+            background: rgba(30, 215, 96, 0.08);
+        }
+        .lrc-num {
+            color: #5f5f5f;
+            font-size: 12px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            cursor: pointer;
+            user-select: none;
+        }
+        .lrc-time,
+        .lrc-text-input {
+            background: #1c1c1c;
+            border: 1px solid #303030;
+            color: #fff;
+            border-radius: 8px;
+            padding: 7px 9px;
+            font-size: 13px;
+            box-sizing: border-box;
+            width: 100%;
+            transition: border-color .2s, background .2s;
+        }
+        .lrc-time {
+            font-family: "Consolas", "Courier New", monospace;
+            text-align: center;
+            padding-left: 4px;
+            padding-right: 4px;
+        }
+        .lrc-text-input { font-size: 14px; }
+        .lrc-time:focus,
+        .lrc-text-input:focus {
+            outline: none;
+            border-color: var(--brand-color);
+            background: #202020;
+        }
+        .lrc-time.invalid { border-color: #d9534f; color: #ff8a80; }
+        .lrc-row.is-empty .lrc-text-input { border-style: dashed; }
+        .lrc-row-actions {
+            display: flex;
+            gap: 1px;
+            opacity: .5;
+            transition: opacity .15s;
+        }
+        .lrc-row:hover .lrc-row-actions,
+        .lrc-row.selected .lrc-row-actions { opacity: 1; }
+        .lrc-mini {
+            width: 29px;
+            height: 29px;
+            display: grid;
+            place-items: center;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: #9a9a9a;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background .15s, color .15s;
+        }
+        .lrc-mini:hover { background: #2a2a2a; color: #fff; }
+        .lrc-mini.stamp { color: var(--brand-color); }
+        .lrc-mini.danger:hover { color: #ff6b6b; }
+
+        .lrc-editor-foot {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 13px 18px;
+            border-top: 1px solid #232323;
+            background: #121212;
+        }
+        .lrc-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #9a9a9a;
+            font-size: 12.5px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .lrc-check input { accent-color: var(--brand-color); width: 15px; height: 15px; cursor: pointer; }
+        .lrc-check.disabled { opacity: .45; cursor: default; }
+        .lrc-hint { color: #6f6f6f; font-size: 12px; }
+        .lrc-foot-buttons { margin-left: auto; display: flex; gap: 10px; }
+        .lrc-btn {
+            border-radius: 20px;
+            padding: 9px 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: opacity .2s, border-color .2s, color .2s;
+        }
+        .lrc-btn.ghost {
+            background: transparent;
+            border: 1px solid #3a3a3a;
+            color: var(--text-muted);
+        }
+        .lrc-btn.ghost:hover { border-color: #666; color: #fff; }
+        .lrc-btn.primary {
+            background: var(--brand-color);
+            border: 1px solid var(--brand-color);
+            color: #000;
+            font-weight: 600;
+        }
+        .lrc-btn.primary:hover { opacity: .87; }
+        .lrc-btn.danger {
+            background: #ff5c5c;
+            border: 1px solid #ff5c5c;
+            color: #1a0000;
+            font-weight: 600;
+        }
+        .lrc-btn.danger:hover { opacity: .87; }
+        .lrc-btn:disabled { opacity: .45; cursor: default; }
+
+        .lrc-confirm-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 12100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(3px);
+        }
+        .lrc-confirm {
+            width: min(390px, 92vw);
+            background: #1b1b1b;
+            border: 1px solid #333;
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            animation: modalPop .22s ease;
+        }
+        .lrc-confirm-title { color: #fff; font-size: 16px; font-weight: 600; }
+        .lrc-confirm-text {
+            color: #9a9a9a;
+            font-size: 13px;
+            line-height: 1.45;
+            margin: 8px 0 18px;
+        }
+        .lrc-confirm-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+        @media (max-width: 760px) {
+            #lrc-editor { padding: 10px; }
+            .lrc-row { grid-template-columns: 26px 84px minmax(0, 1fr); }
+            .lrc-row-actions { grid-column: 1 / -1; justify-content: flex-end; }
+            .lrc-status { flex-basis: 100%; text-align: left; margin-left: 0; }
+        }
+
+        /* ── Отклик кнопок шапки ── */
+        .header-btn:active { transform: scale(.9); }
+
+        @media (prefers-reduced-motion: reduce) {
+            body.wave-view-opening .wave-view,
+            body.wave-view-closing .wave-view,
+            body.wave-view-opening .player-card,
+            body.wave-view-closing .player-card,
+            body.wave-view-settling .player-card,
+            body.wave-view-opening .wv-section-title,
+            body.wave-view-opening .wv-row,
+            body.lyrics-mode .player-card,
+            body.lyrics-mode .lyrics-container,
+            body.lyrics-mode .lyric-line,
+            #settings-modal,
+            #settings-modal > div,
+            .lrc-editor-panel {
+                animation: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -935,19 +1789,46 @@
         <button id="clear-search">✕</button>
     </div>
 
-    <label class="file-upload-label" id="open-folder-label">
-        Загрузить папку
-    </label>
-    <!-- fallback для браузеров без FSA -->
-    <input type="file" id="folderinput" webkitdirectory directory multiple style="display:none">
+    <div class="header-right">
+        <button id="queue-btn" class="header-btn" title="Очередь и история (Esc — закрыть)" aria-label="Очередь и история">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M2 3.2h12v1.4H2zM2 7.1h12v1.4H2zM2 11h8.5v1.4H2z"/>
+            </svg>
+            <span class="queue-badge" id="queue-badge">0</span>
+        </button>
+        <label class="file-upload-label" id="open-folder-label">
+            Загрузить папку
+        </label>
+        <!-- fallback для браузеров без FSA -->
+        <input type="file" id="folderinput" webkitdirectory directory multiple style="display:none">
+    </div>
 </header>
 
 <aside class="sidebar">
-    <div class="sidebar-header" id="folder-name">Треки</div>
+    <div class="sidebar-top">
+        <div class="sidebar-header" id="folder-name">Треки</div>
+        <button type="button" class="genre-btn" id="genre-btn" aria-haspopup="true" aria-expanded="false"
+                title="Фильтр по жанру" hidden>
+            <span class="gb-label" id="genre-btn-label">Жанры</span>
+            <svg class="gb-chev" viewBox="0 0 10 6" width="10" height="6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
     <div class="track-list-container" id="track-list-container">
         <div id="track-list"></div>
     </div>
 </aside>
+
+<!-- меню жанров: открывается кнопкой в шапке сайдбара -->
+<div class="genre-pop" id="genre-pop" role="dialog" aria-label="Фильтр по жанру" hidden>
+    <div class="genre-pop-head">
+        <span class="genre-pop-title">Жанры</span>
+        <button type="button" class="genre-reset" id="genre-reset" hidden>Сбросить</button>
+    </div>
+    <div class="genre-pop-list" id="genre-pop-list"></div>
+</div>
 
 <main class="content">
     <div class="visualizer-glow" id="visualizer-glow"></div>
@@ -963,7 +1844,10 @@
             <div class="player-track-info">
                 <h2 id="current-track-title">Название трека</h2>
                 <div class="player-artists" id="current-track-artists">Исполнитель</div>
-                <div class="track-ext" id="current-track-ext">MP3</div>
+                <div class="track-badges">
+                    <div class="track-ext" id="current-track-ext">MP3</div>
+                    <button type="button" class="track-genre" id="current-track-genre" hidden></button>
+                </div>
             </div>
 
             <div class="controls-container">
@@ -1010,7 +1894,10 @@
                 <span id="time-total">0:00</span>
             </div>
             <div class="lyrics-section" id="lyrics-section">
-                <button class="lyrics-button" id="lyrics-button">Текст</button>
+                <div class="lyrics-actions">
+                    <button class="lyrics-button" id="lyrics-button">Текст</button>
+                    <button class="lyrics-edit-button" id="lyrics-edit-button" title="Поправить тайминги строк вручную">✎ Тайминги</button>
+                </div>
             </div>
         </div>
 
@@ -1020,6 +1907,32 @@
             </div>
         </div>
         <audio id="audio"></audio>
+    </div>
+
+    <button class="lyrics-close" id="lyrics-close" type="button"
+            title="Закрыть режим текста (Esc)" aria-label="Закрыть режим текста">✕</button>
+
+    <div class="wave-view" id="wave-view">
+        <div class="wave-view-head">
+            <div>
+                <div class="wave-view-title">Волна</div>
+                <div class="wave-view-sub" id="wave-view-sub">очередь и история</div>
+            </div>
+            <div class="wave-view-actions">
+                <div class="wave-view-badge"><span class="wave-dot"></span>в эфире</div>
+                <button class="wave-view-close" id="wave-view-close" title="Закрыть (Esc)">✕</button>
+            </div>
+        </div>
+        <div class="wave-view-scroll" id="wave-view-scroll">
+            <section class="wv-section">
+                <div class="wv-section-title">Далее <span class="wv-count" id="wave-queue-count">0</span></div>
+                <div id="wave-queue-list"></div>
+            </section>
+            <section class="wv-section">
+                <div class="wv-section-title">Играли <span class="wv-count" id="wave-history-count">0</span></div>
+                <div id="wave-history-list"></div>
+            </section>
+        </div>
     </div>
 </main>
 
@@ -1049,6 +1962,7 @@
     </div>
 </div>
 
+<script src="genres.js"></script>
 <script src="sync-api.js"></script>
 
 <script>
@@ -1146,15 +2060,17 @@
     const DB_STORE = 'handles';
     const SETTINGS_STORE = 'settings';
     const RECO_STORE = 'reco';
+    const LYRICS_STORE = 'lyricsEdits';
 
     function openDB(){
         return new Promise((res, rej) => {
-            const req = indexedDB.open(DB_NAME, 3);
+            const req = indexedDB.open(DB_NAME, 4);
             req.onupgradeneeded = e => {
                 const db = e.target.result;
                 if (!db.objectStoreNames.contains(DB_STORE))       db.createObjectStore(DB_STORE);
                 if (!db.objectStoreNames.contains(SETTINGS_STORE)) db.createObjectStore(SETTINGS_STORE);
                 if (!db.objectStoreNames.contains(RECO_STORE))     db.createObjectStore(RECO_STORE);   // ← новое
+                if (!db.objectStoreNames.contains(LYRICS_STORE))   db.createObjectStore(LYRICS_STORE); // ← правки таймингов
             };
             req.onsuccess = e => res(e.target.result);
             req.onerror  = e => rej(e);
@@ -1204,11 +2120,66 @@
         } catch(e) { return null; }
     }
 
+    // ══════════════════════════════════════════════════════
+    //  ПРАВКИ ТАЙМИНГОВ LRC — хранение в IndexedDB
+    //  Ключ — путь трека внутри открытой папки, поэтому правка
+    //  находится и после повторного «Загрузить папку».
+    // ══════════════════════════════════════════════════════
+    const lyricsEditCache = new Map();   // key → { lrcText, originalText, updatedAt } | null
+
+    function lyricsKeyFor(file) {
+        const raw = file._path || file.webkitRelativePath || file.name || '';
+        return String(raw).replace(/\\/g, '/').toLowerCase();
+    }
+
+    async function loadLyricsEdit(key) {
+        if (!key) return null;
+        if (lyricsEditCache.has(key)) return lyricsEditCache.get(key);
+        try {
+            const db = await openDB();
+            const record = await new Promise((res) => {
+                const tx = db.transaction(LYRICS_STORE, 'readonly');
+                const req = tx.objectStore(LYRICS_STORE).get(key);
+                req.onsuccess = e => res(e.target.result || null);
+                req.onerror = () => res(null);
+            });
+            lyricsEditCache.set(key, record);
+            return record;
+        } catch (e) {
+            console.warn('loadLyricsEdit:', e);
+            return null;
+        }
+    }
+
+    async function saveLyricsEdit(key, lrcText, originalText) {
+        if (!key) return false;
+        const record = {
+            lrcText: String(lrcText || ''),
+            originalText: originalText == null ? null : String(originalText),
+            updatedAt: Date.now()
+        };
+        try {
+            const db = await openDB();
+            await new Promise((res, rej) => {
+                const tx = db.transaction(LYRICS_STORE, 'readwrite');
+                tx.objectStore(LYRICS_STORE).put(record, key);
+                tx.oncomplete = () => res();
+                tx.onerror = () => rej(tx.error);
+            });
+            lyricsEditCache.set(key, record);
+            return true;
+        } catch (e) {
+            console.warn('saveLyricsEdit:', e);
+            return false;
+        }
+    }
+
     function isSyncConfigured() {
         return syncSettings && syncSettings.enabled !== false && syncSettings.serverUrl;
     }
 
     let syncSettings = null;
+    let currentDirHandle = null;   // папка, открытая через File System Access API (нужна для записи .lrc)
 
     // ══════════════════════════════════════════════════════
     //  SETTINGS MODAL
@@ -1403,6 +2374,7 @@
     }
 
     async function loadDirectory(dirHandle, options = {}){
+        currentDirHandle = dirHandle || null;
         const allFiles = [];
         async function walk(handle, path){
             for await(const [name, entry] of handle.entries()){
@@ -1439,6 +2411,7 @@
     }
 
     folderinput.addEventListener('change', (e) => {
+        currentDirHandle = null;   // обычный input не даёт доступа на запись
         processFiles(Array.from(e.target.files), null);
     });
 
@@ -1458,13 +2431,24 @@
             file.parsedTitle   = parsed.title;
             file.parsedArtists = parsed.artists;
             file.lyrics    = null;
+            file.lyricsEdited     = null;   // ручная правка, сохранённая в приложении
+            file.lyricsOriginal   = null;   // исходный текст (тег/файл) — для «Сбросить»
             file.lrcFile   = findLrcFile(file, lrcFiles);
+            // жанр: папка → исполнитель; точный тег подтянет сканер ниже
+            const g = genreForFile(file);
+            file.genres       = g.list;
+            file.genreSrc     = g.src;
+            file.genreScanned = false;
             return file;
         });
 
         filteredTracks = [...tracks];
         fuseDirty = true;
         currentTrackGlobalIndex = -1;
+        activeGenre = null;
+
+        // новая библиотека — очередь и история волны больше не актуальны
+        if (typeof RecoEngine !== 'undefined' && waveMode) RecoEngine.reset();
 
         if(rootName){
             folderNameDisplay.textContent = rootName;
@@ -1473,6 +2457,8 @@
         }
 
         renderPlaylist();
+        renderGenreMenu();
+        scanGenres();
         if(filteredTracks.length > 0) playTrack(filteredTracks[0]);
     }
 
@@ -1508,6 +2494,7 @@
     const performanceBtn = document.getElementById('performance-btn');
     const settingsBtn = document.getElementById('settings-btn');
     const lyricsSection = document.getElementById("lyrics-section");
+    const lyricsClose = document.getElementById('lyrics-close');
 
     const DEFAULT_COLOR = '#1ed760';
     let tracks = [];
@@ -1517,6 +2504,7 @@
     let pooledItems = [];
     let currentTrackGlobalIndex = -1;
     let searchTimeout = null;
+    let activeGenre = null;      // выбранный в полосе жанр (null — все)
     let currentObjectUrl = null;
     let lastFrameTime = 0;
     let currentFPS = 60;
@@ -1551,10 +2539,17 @@
 
     function showLyrics(text){
         lyricsText.innerHTML = "";
-        text.split(/\r?\n/).forEach(line=>{
+        const lines = String(text || '').split(/\r?\n/);
+        // пустые края не показываем, внутренние пустые строки — это разрывы
+        while(lines.length && !lines[0].trim()) lines.shift();
+        while(lines.length && !lines[lines.length - 1].trim()) lines.pop();
+        lines.forEach(line=>{
             const div = document.createElement("div");
             div.className = "lyric-line";
-            div.textContent = line;
+            // пустая строка — осмысленный разделитель между куплетами,
+            // не даём ей схлопнуться в ноль по высоте
+            div.textContent = line.trim() ? line : "\u00A0";
+            if(!line.trim()) div.classList.add("empty");
             div.style.color = "#adadad"
             lyricsText.appendChild(div);
         });
@@ -1854,7 +2849,8 @@
     let fuseDirty = true;
 
     function prepareTrackForSearch(file) {
-        const base = (file.parsedTitle || '') + ' ' + (file.parsedArtists || []).join(' ');
+        const base = (file.parsedTitle || '') + ' ' + (file.parsedArtists || []).join(' ') +
+            ' ' + (file.genres || []).map(g => genreLabel(g) + ' ' + g).join(' ');
         const lower = base.toLowerCase();
         file._searchOriginal = lower;
         file._searchTranslit = transliterate(lower);
@@ -1888,7 +2884,8 @@
             const matches = [...line.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)];
             if(matches.length){
                 timed = true;
-                const lyric = line.replace(/\[.*?\]/g,"").trim();
+                // убираем только метки времени: текст в квадратных скобках — часть строки
+                const lyric = line.replace(/\[\d+:\d+(?:\.\d+)?\]/g,"").trim();
                 matches.forEach(match=>{
                     lines.push({ time: Number(match[1]) * 60 + Number(match[2]), text: lyric });
                 });
@@ -1903,10 +2900,13 @@
         lines.forEach(line=>{
             const div = document.createElement("div");
             div.className = "lyric-line";
-            div.textContent = line.text;
+            // пустая строка с таймингом — пауза между куплетами:
+            // показываем как пустую, но с полноценной высотой
+            div.textContent = line.text.trim() ? line.text : "\u00A0";
+            if(!line.text.trim()) div.classList.add("empty");
             div.addEventListener("click", ()=>{
-                audio.currentTime = line.time - 0.3;
-                audio.play();
+                audio.currentTime = Math.max(0, line.time - 0.3);
+                audio.play().catch(() => {});
                 currentLyric = lines.findIndex(l => l === line);
                 updateKaraoke(audio.currentTime);
             });
@@ -2006,7 +3006,7 @@
             const item = document.createElement("div");
             item.className = "track-item";
             item.style.height = ITEM_HEIGHT + "px";
-            item.innerHTML = `<span class="track-num"></span><div class="track-info"><span class="track-title"></span><span class="track-artists"></span></div>`;
+            item.innerHTML = `<span class="track-num"></span><div class="track-info"><span class="track-title"></span><span class="track-artists"><span class="ta-names"></span><span class="ta-genre"></span></span></div>`;
             pooledItems.push(item);
             fragment.appendChild(item);
         }
@@ -2037,7 +3037,9 @@
             item.dataset.index = index;
             item.querySelector(".track-num").textContent = index + 1;
             item.querySelector(".track-title").textContent = file.parsedTitle;
-            item.querySelector(".track-artists").textContent = file.parsedArtists.join(", ");
+            item.querySelector(".ta-names").textContent = file.parsedArtists.join(", ");
+            item.querySelector(".ta-genre").textContent =
+                (file.genres && file.genres.length) ? '· ' + genreLabel(file.genres[0]) : '';
             item.classList.toggle("active", tracks.indexOf(file) === currentTrackGlobalIndex);
         }
     }
@@ -2101,13 +3103,26 @@
                 const tags = tag.tags;
                 if (tags.title && tags.title.trim()) file.parsedTitle = tags.title.trim();
                 if (tags.artist && tags.artist.trim()) file.parsedArtists = tags.artist.split(/\s*,\s*|\s*&\s*|\s+feat\.?\s+|\s+ft\.?\s+/i).map(a => a.trim()).filter(Boolean);
+                if (tags.genre != null && window.KivoGenres) {
+                    const ids = window.KivoGenres.fromTag(tags.genre);
+                    if (ids.length) {
+                        file.genres = ids;
+                        file.genresRaw = String(tags.genre).trim();
+                        file.genreSrc = 'tag';
+                    }
+                }
                 file.tagLoaded = true;
+                file.genreScanned = true;
                 fuseDirty = true;
+                renderGenreMenu();
+                updateCurrentGenreBadge();
                 if (tracks[currentTrackGlobalIndex] === file) {
                     playerTrackTitle.textContent = file.parsedTitle;
                     playerTrackArtists.innerHTML = "";
                     playerTrackArtists.appendChild(createArtistsHtml(file.parsedArtists));
                     updateLyricsButton(file);
+                    // тег дочитался позже — показываем его текст, если ручной правки нет
+                    if (file.lyrics && !file.lyricsEdited) loadLyrics(file);
                 }
                 forceTrackRender = true;
                 renderVisibleTracks();
@@ -2177,10 +3192,40 @@
         scrollTimer = setTimeout(() => { scrollActive = false; visualizerQuality = 1; currentFPS = 60; }, 150);
     }
 
+    // Под плеером всегда одна кнопка:
+    //   нет текста            → «＋ Добавить текст» (сразу открывает редактор)
+    //   текст есть            → «Текст» (открывает режим чтения)
+    //   режим чтения открыт   → «✎ Тайминги» (открывает редактор)
     function updateLyricsButton(file){
-        const hasLyrics = !!file.lyrics || !!file.lrcFile;
-        lyricsSection.classList.toggle("hidden", !hasLyrics);
+        const editBtn = document.getElementById('lyrics-edit-button');
+        const hasLyrics = !!(file && (file.lyrics || file.lrcFile || file.lyricsOriginal || file.lyricsEdited));
+
+        const showTextButton = hasLyrics && !lyricsMode;
+        const showEditButton = !hasLyrics || lyricsMode;
+
+        lyricsSection.classList.toggle("hidden", false);
+        lyricsButton.classList.toggle("hidden", !showTextButton);
+        lyricsButton.title = 'Открыть текст песни';
+        if(editBtn){
+            editBtn.classList.toggle("hidden", !showEditButton);
+            const label = hasLyrics ? '✎ Тайминги' : '＋ Добавить текст';
+            if(editBtn.textContent !== label) editBtn.textContent = label;
+            editBtn.classList.toggle("has-edit", !!file.lyricsEdited);
+            editBtn.title = hasLyrics
+                ? 'Поправить текст и тайминги строк'
+                : 'Добавить текст песни и разметить его по времени';
+        }
         if(!hasLyrics) playerCard.classList.remove("show-lyrics");
+    }
+
+    // вход/выход из полноэкранного режима текста — кнопки и крестик обновляются здесь
+    function setLyricsMode(enabled){
+        lyricsMode = !!enabled;
+        currentFPS = lyricsMode ? 30 : 60;
+        document.body.classList.toggle("lyrics-mode", lyricsMode);
+        if(lyricsMode) setTimeout(() => scrollToCurrentLyric(), 550);
+        const file = tracks[currentTrackGlobalIndex];
+        if(file) updateLyricsButton(file);
     }
 
     function visualize(timestamp){
@@ -2227,7 +3272,7 @@
     const toggleSidebarBtn = document.getElementById('toggle-sidebar');
     toggleSidebarBtn.addEventListener('click', () => document.body.classList.toggle('sidebar-hidden'));
 
-    function playTrack(file) {
+    function playTrack(file, opts = {}) {
         const globalIdx = tracks.indexOf(file);
         if (globalIdx === -1) return;
 
@@ -2244,6 +3289,7 @@
         if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
         currentTrackGlobalIndex = globalIdx;
         sessionPlayed.add(RecoEngine.key(file));
+        kivoRememberPlayed(globalIdx);
         forceTrackRender = true;
         renderVisibleTracks();
         currentObjectUrl = URL.createObjectURL(file);
@@ -2252,99 +3298,600 @@
         playerTrackArtists.innerHTML = '';
         playerTrackArtists.appendChild(createArtistsHtml(file.parsedArtists));
         currentTrackExt.textContent = getTrackExt(file);
+        updateCurrentGenreBadge();
         extractCover(file);
         updateLyricsButton(file);
         loadLyrics(file);
-        updateLyrics(file);
         renderVisibleTracks();
-        audio.play();
+        // play() может быть прерван новой загрузкой src — не даём всплыть unhandled rejection
+        audio.play().catch(() => {});
 
         if (waveMode) {
             const k = RecoEngine.key(file);
             const stat = RecoEngine.stats.get(k);
             voteState = stat ? (stat.vote || 0) : 0;
             renderVote();
-            RecoEngine.onTrackStarted(file);
+            RecoEngine.onTrackStarted(file, opts);
         }
     }
 
-    function updateLyrics(file){
-        if(file.lyrics){ lyricsText.textContent = file.lyrics; lyricsContainer.style.display = "block"; }
-        else { lyricsText.textContent = "Текст отсутствует"; lyricsContainer.style.display = "block"; }
+    let lyricsLoadToken = 0;
+
+    function resetLyricsView(){
+        lyricsText.innerHTML = "";
+        currentLyric = -1;
+        lyricsContainer.style.display = "block";
+    }
+
+    // Единая точка отрисовки текста: и для тега, и для .lrc, и для ручной правки.
+    // origin: 'edit' | 'tag' | 'lrc' | 'none'
+    function applyLyrics(file, rawText, origin){
+        const text = String(rawText || "");
+        if(origin !== 'edit') file.lyricsOriginal = text;
+        file.lyricsSource  = origin;
+        file.lyricsCurrent = text;
+
+        const parsed = parseLrc(text);
+        file.lyricsTimed  = parsed.timed && parsed.lines.length > 0;
+        file.lyricsParsed = parsed.lines;
+
+        resetLyricsView();
+
+        if(parsed.timed && parsed.lines.length){
+            renderTimedLyrics(parsed.lines);
+        } else if(text.trim()){
+            showLyrics(text);
+        } else {
+            setLyricsMode(false);
+            const empty = document.createElement("div");
+            empty.className = "lyric-line";
+            empty.style.cssText = "font-size:20px;color:#5a5a5a";
+            empty.textContent = "Текст отсутствует — нажмите «＋ Добавить текст», чтобы вставить его";
+            lyricsText.appendChild(empty);
+        }
+
+        updateLyricsButton(file);
     }
 
     async function loadLyrics(file){
-        if(file.lyrics){
-            const parsed = parseLrc(file.lyrics);
-            file.lyricsTimed = parsed.timed;
-            file.lyricsParsed = parsed.lines;
-            if(parsed.timed) renderTimedLyrics(parsed.lines);
-            else showLyrics(file.lyrics);
+        const token = ++lyricsLoadToken;
+
+        // 1. ручная правка, уже поднятая в память
+        if(file.lyricsEdited != null){
+            applyLyrics(file, file.lyricsEdited, 'edit');
             return;
         }
+
+        // 2. ручная правка из IndexedDB (переживает перезапуск плеера)
+        let edit = null;
+        try { edit = await loadLyricsEdit(lyricsKeyFor(file)); } catch(_) {}
+        if(token !== lyricsLoadToken || tracks[currentTrackGlobalIndex] !== file) return;
+        if(edit && edit.lrcText != null){
+            file.lyricsEdited = edit.lrcText;
+            if(file.lyricsOriginal == null && edit.originalText != null) file.lyricsOriginal = edit.originalText;
+            applyLyrics(file, edit.lrcText, 'edit');
+            return;
+        }
+
+        // 3. текст из метаданных (USLT)
+        if(file.lyrics){
+            applyLyrics(file, file.lyrics, 'tag');
+            return;
+        }
+
+        // 4. соседний .lrc
         if(file.lrcFile){
             const lrc = await loadLrc(file.lrcFile);
-            if(lrc){
-                const parsed = parseLrc(lrc);
-                file.lyricsTimed = parsed.timed;
-                file.lyricsParsed = parsed.lines;
-                if(parsed.timed) renderTimedLyrics(parsed.lines);
-                else showLyrics(lrc);
+            if(token !== lyricsLoadToken || tracks[currentTrackGlobalIndex] !== file) return;
+            if(lrc && String(lrc).trim()){
+                applyLyrics(file, lrc, 'lrc');
                 return;
             }
         }
-        lyricsMode = false;
-        document.body.classList.toggle("lyrics-mode", lyricsMode);
+
+        applyLyrics(file, '', 'none');
     }
 
-    function executeSearch(query) {
+    // Поиск без побочных эффектов: только считает список, ничего не рендерит
+    // треки, чей жанр назван в запросе: «рок» должен находить рок, а не «Пророк»
+    function genreQueryTracks(q) {
+        const G = window.KivoGenres;
+        if (!G || !q) return [];
+        const ids = G.detect(q);
+        if (!ids.length) return [];
+        return tracks.filter(f => (f.genres || []).some(g => ids.includes(g)));
+    }
+
+    // и не трогает filteredTracks. Нужен и executeSearch, и голосовому помощнику.
+    function searchTracks(query) {
         const q = (query || '').toLowerCase().trim();
 
-        if (!q) {
-            filteredTracks = [...tracks];
-        } else if (typeof Fuse === 'undefined') {
+        if (!q) return [...tracks];
+
+        const byGenre = genreQueryTracks(q);
+
+        if (typeof Fuse === 'undefined') {
             // fallback без Fuse
             const swapped = layoutSwap(q);
             const queries = [q, transliterate(q)];
             if (swapped) queries.push(swapped, transliterate(swapped));
 
-            filteredTracks = tracks.filter(file => {
-                const hay = (file.parsedTitle + ' ' + file.parsedArtists.join(' ')).toLowerCase();
+            const rest = tracks.filter(file => {
+                const hay = (file.parsedTitle + ' ' + file.parsedArtists.join(' ') + ' ' +
+                    (file.genres || []).map(genreLabel).join(' ')).toLowerCase();
                 const hayT = transliterate(hay);
                 return queries.some(v => hay.includes(v) || hayT.includes(v));
             });
-        } else {
-            ensureFuseIndex();
-
-            // Собираем все варианты запроса
-            const queries = new Set();
-            queries.add(q);
-            queries.add(transliterate(q));
-
-            const swapped = layoutSwap(q);
-            if (swapped) {
-                queries.add(swapped);
-                queries.add(transliterate(swapped));
-            }
-
-            const scores = new Map();
-            for (const variant of queries) {
-                for (const r of fuse.search(variant)) {
-                    const prev = scores.get(r.item);
-                    if (prev === undefined || r.score < prev) scores.set(r.item, r.score);
-                }
-            }
-
-            filteredTracks = [...scores.entries()]
-                .sort((a, b) => a[1] - b[1])
-                .map(e => e[0]);
+            return byGenre.length
+                ? byGenre.concat(rest.filter(f => !byGenre.includes(f)))
+                : rest;
         }
 
+        ensureFuseIndex();
+
+        // Собираем все варианты запроса
+        const queries = new Set();
+        queries.add(q);
+        queries.add(transliterate(q));
+
+        const swapped = layoutSwap(q);
+        if (swapped) {
+            queries.add(swapped);
+            queries.add(transliterate(swapped));
+        }
+
+        const scores = new Map();
+        for (const variant of queries) {
+            for (const r of fuse.search(variant)) {
+                const prev = scores.get(r.item);
+                if (prev === undefined || r.score < prev) scores.set(r.item, r.score);
+            }
+        }
+
+        const found = [...scores.entries()]
+            .sort((a, b) => a[1] - b[1])
+            .map(e => e[0]);
+
+        if (!byGenre.length) return found;
+
+        const seen = new Set(byGenre);
+        return byGenre.concat(found.filter(f => !seen.has(f)));
+    }
+
+    // поиск + фильтр по жанру — одна точка, чтобы они не спорили друг с другом
+    function applyFilters(query) {
+        const q = (query === undefined) ? searchInput.value : query;
+        let list = searchTracks(q);
+        if (activeGenre) list = list.filter(f => (f.genres || []).includes(activeGenre));
+
+        filteredTracks = list;
         renderPlaylist();
         trackListContainer.scrollTop = 0;
         forceTrackRender = true;
         renderVisibleTracks();
     }
+
+    function executeSearch(query) {
+        // новый поиск — старый фильтр по жанру больше не актуален
+        if (activeGenre) { activeGenre = null; renderGenreMenu(); }
+        applyFilters(query);
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  ЖАНРЫ
+    //  Справочник жанров и разбор тегов — в genres.js (общий с
+    //  голосовым помощником). Здесь: определение жанра для файла,
+    //  полоса фильтров, бейдж в карточке и фоновое чтение тегов.
+    // ══════════════════════════════════════════════════════
+    const genreBtn = document.getElementById('genre-btn');
+    const genreBtnLabel = document.getElementById('genre-btn-label');
+    const genrePop = document.getElementById('genre-pop');
+    const genrePopList = document.getElementById('genre-pop-list');
+    const genreReset = document.getElementById('genre-reset');
+    const currentTrackGenre = document.getElementById('current-track-genre');
+
+    let genrePopOpen = false;
+
+    function genreLabel(id) {
+        return (window.KivoGenres && id) ? window.KivoGenres.label(id) : String(id || '');
+    }
+
+    // жанр без чтения тегов: сначала папка, потом исполнитель
+    function genreForFile(file) {
+        const G = window.KivoGenres;
+        if (!G) return { list: [], src: '' };
+
+        const path = file._path || file.webkitRelativePath || '';
+        const fromFolder = G.detectFolder(path);
+        if (fromFolder.length) return { list: fromFolder, src: 'folder' };
+
+        for (const a of (file.parsedArtists || [])) {
+            const g = G.detectArtist(a);
+            if (g) return { list: [g], src: 'artist' };
+        }
+        return { list: [], src: '' };
+    }
+
+    function genreCounts() {
+        const map = new Map();
+        for (const f of tracks) {
+            for (const g of (f.genres || [])) map.set(g, (map.get(g) || 0) + 1);
+        }
+        return [...map.entries()].sort((a, b) =>
+            (b[1] - a[1]) || genreLabel(a[0]).localeCompare(genreLabel(b[0]), 'ru'));
+    }
+
+    function renderGenreMenu() {
+        const list = genreCounts();
+
+        // выбранного жанра больше нет в библиотеке
+        if (activeGenre && !list.some(([id]) => id === activeGenre)) activeGenre = null;
+
+        if (genrePopList) {
+            genrePopList.innerHTML = '';
+            if (list.length) {
+                const addChip = (label, count, id, all) => {
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = 'genre-chip'
+                        + (all ? ' is-all' : '')
+                        + (id === activeGenre ? ' active' : '');
+                    chip.dataset.genre = id || '';
+
+                    const t = document.createElement('span');
+                    t.className = 'gc-t';
+                    t.textContent = label;
+                    const n = document.createElement('span');
+                    n.className = 'gc-n';
+                    n.textContent = count;
+
+                    chip.append(t, n);
+                    chip.addEventListener('click', () => setGenreFilter(id));
+                    genrePopList.appendChild(chip);
+                };
+
+                addChip('Все', tracks.length, null, true);
+                for (const [id, n] of list) addChip(genreLabel(id), n, id, false);
+            }
+        }
+
+        if (genreReset) genreReset.hidden = !activeGenre;
+        updateGenreButton(list);
+    }
+
+    function updateGenreButton(list) {
+        if (!genreBtn) return;
+        const n = list ? list.length : 0;
+        genreBtn.hidden = n === 0;
+        if (!n) { closeGenrePop(); return; }
+
+        const hit = activeGenre ? list.find(([id]) => id === activeGenre) : null;
+        genreBtnLabel.textContent = activeGenre ? genreLabel(activeGenre) : 'Жанры';
+        genreBtn.classList.toggle('is-active', !!activeGenre);
+        genreBtn.title = activeGenre
+            ? `Жанр: ${genreLabel(activeGenre)}${hit ? ' · ' + hit[1] + ' треков' : ''} — нажмите, чтобы сменить`
+            : `Жанров: ${n} — фильтр по жанру`;
+    }
+
+    // ── открытие/закрытие меню ──
+    // position: fixed — иначе меню обрежется overflow:hidden сайдбара
+    function positionGenrePop() {
+        if (!genrePop || !genreBtn) return;
+
+        const r = genreBtn.getBoundingClientRect();
+        const w = Math.min(320, Math.max(240, window.innerWidth - 24));
+        const maxH = Math.min(Math.round(window.innerHeight * 0.62), 480);
+
+        let left = Math.min(r.left, window.innerWidth - w - 12);
+        left = Math.max(12, left);
+
+        const below = window.innerHeight - r.bottom - 12;
+        const above = r.top - 12;
+
+        let top, h;
+        if (below < 200 && above > below) {
+            h = Math.min(maxH, above);
+            top = r.top - h - 8;
+        } else {
+            h = Math.min(maxH, below);
+            top = r.bottom + 8;
+        }
+
+        genrePop.style.width = w + 'px';
+        genrePop.style.left = left + 'px';
+        genrePop.style.top = Math.max(8, top) + 'px';
+        genrePop.style.maxHeight = Math.max(140, h) + 'px';
+    }
+
+    function openGenrePop() {
+        if (!genrePop || !genreBtn || genreBtn.hidden) return;
+        renderGenreMenu();
+        genrePop.hidden = false;
+        genrePopOpen = true;
+        genreBtn.classList.add('is-open');
+        genreBtn.setAttribute('aria-expanded', 'true');
+        positionGenrePop();
+
+        const act = genrePopList && genrePopList.querySelector('.genre-chip.active');
+        if (act) act.scrollIntoView({ block: 'nearest' });
+    }
+
+    function closeGenrePop() {
+        if (!genrePop || !genrePopOpen) return;
+        genrePop.hidden = true;
+        genrePopOpen = false;
+        if (genreBtn) {
+            genreBtn.classList.remove('is-open');
+            genreBtn.setAttribute('aria-expanded', 'false');
+        }
+    }
+
+    function toggleGenrePop() {
+        if (genrePopOpen) closeGenrePop();
+        else openGenrePop();
+    }
+
+    if (genreBtn) {
+        genreBtn.addEventListener('click', () => toggleGenrePop());
+        document.addEventListener('mousedown', (e) => {
+            if (!genrePopOpen) return;
+            if (genrePop.contains(e.target) || genreBtn.contains(e.target)) return;
+            closeGenrePop();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (!genrePopOpen || e.key !== 'Escape') return;
+            closeGenrePop();
+            e.stopPropagation();
+        }, true);
+        window.addEventListener('resize', () => { if (genrePopOpen) positionGenrePop(); });
+    }
+
+    if (genreReset) {
+        genreReset.addEventListener('click', () => setGenreFilter(null));
+    }
+
+    function setGenreFilter(id, toggle = true) {
+        activeGenre = (toggle && activeGenre === id) ? null : id;
+        if (activeGenre) {
+            searchInput.value = '';
+            clearSearchBtn.style.display = 'none';
+        }
+        applyFilters('');
+        renderGenreMenu();
+        closeGenrePop();
+        if (activeGenre && document.body.classList.contains('sidebar-hidden')) {
+            document.body.classList.remove('sidebar-hidden');
+        }
+    }
+
+    function updateCurrentGenreBadge() {
+        if (!currentTrackGenre) return;
+        const file = tracks[currentTrackGlobalIndex];
+        const gid = file && (file.genres || [])[0];
+
+        currentTrackGenre.hidden = !gid;
+        currentTrackGenre.textContent = gid ? genreLabel(gid) : '';
+        if (!gid) { currentTrackGenre.removeAttribute('title'); return; }
+
+        const src = file.genreSrc === 'tag'
+            ? (file.genresRaw ? `тег: ${file.genresRaw}` : 'из тега файла')
+            : file.genreSrc === 'folder' ? 'по папке'
+            : 'по исполнителю';
+        currentTrackGenre.title = `Жанр ${genreLabel(gid)} (${src}) — нажмите, чтобы показать все треки жанра`;
+    }
+
+    if (currentTrackGenre) {
+        currentTrackGenre.addEventListener('click', () => {
+            const file = tracks[currentTrackGlobalIndex];
+            const gid = file && (file.genres || [])[0];
+            if (!gid) return;
+            // бейдж всегда показывает жанр, а не переключает фильтр
+            setGenreFilter(gid, false);
+        });
+    }
+
+    // фоновое чтение тегов: у файлов с ID3-жанром он точнее папки и исполнителя
+    let genreScanToken = 0;
+
+    function readGenreTag(file, cb) {
+        let done = false;
+        const finish = () => { if (done) return; done = true; file.genreScanned = true; cb(); };
+        try {
+            window.jsmediatags.read(file, {
+                onSuccess: (tag) => {
+                    const raw = tag && tag.tags && tag.tags.genre;
+                    const ids = (raw != null && window.KivoGenres) ? window.KivoGenres.fromTag(raw) : [];
+                    if (ids.length) {
+                        file.genres = ids;
+                        file.genresRaw = String(raw).trim();
+                        file.genreSrc = 'tag';
+                    }
+                    finish();
+                },
+                onError: finish
+            });
+        } catch (_) { finish(); }
+    }
+
+    function scanGenres() {
+        if (!window.jsmediatags || !window.KivoGenres) return;
+
+        const token = ++genreScanToken;
+        const queue = tracks.filter(f => !f.genreScanned);
+        if (!queue.length) return;
+
+        let i = 0;
+        let done = 0;
+
+        const flush = () => {
+            if (token !== genreScanToken) return;
+            fuseDirty = true;
+            renderGenreMenu();
+            forceTrackRender = true;
+            renderVisibleTracks();
+            updateCurrentGenreBadge();
+        };
+
+        const step = () => {
+            if (token !== genreScanToken) return;
+            if (i >= queue.length) { if (done) flush(); return; }
+            readGenreTag(queue[i++], () => {
+                done++;
+                if (done % 12 === 0) flush();
+                setTimeout(step, 25);
+            });
+        };
+
+        // не мешаем первому треку загрузиться и отрисоваться
+        setTimeout(step, 700);
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  МОСТ ДЛЯ ГОЛОСОВОГО ПОМОЩНИКА
+    //  Помощник живёт в отдельном файле и не умеет работать с File напрямую.
+    //  Здесь он получает доступ к медиатеке: список треков, исполнители,
+    //  поиск без побочных эффектов, история прослушивания и запуск по индексу.
+    // ══════════════════════════════════════════════════════
+    const KIVO_RECENT_MAX = 80;
+    let kivoRecent = [];        // глобальные индексы, последний — в конце
+
+    function kivoRememberPlayed(idx) {
+        if (idx == null || idx < 0) return;
+        const at = kivoRecent.indexOf(idx);
+        if (at !== -1) kivoRecent.splice(at, 1);
+        kivoRecent.push(idx);
+        if (kivoRecent.length > KIVO_RECENT_MAX) kivoRecent.shift();
+    }
+
+    function kivoNorm(s) {
+        return String(s || '').toLowerCase().replace(/ё/g, 'е')
+            .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    }
+
+    function kivoInfo(file, index) {
+        return {
+            index,
+            title: file.parsedTitle || file.name.replace(/\.[^.]+$/, ''),
+            artists: (file.parsedArtists || []).slice(),
+            genres: (file.genres || []).slice(),
+            genresRaw: file.genresRaw || '',
+            genreSrc: file.genreSrc || '',
+            file: file.name
+        };
+    }
+
+    window.KivoLibrary = {
+        version: 2,
+
+        count: () => tracks.length,
+        list: () => tracks.map((f, i) => kivoInfo(f, i)),
+
+        current: () => (currentTrackGlobalIndex >= 0 && tracks[currentTrackGlobalIndex])
+            ? kivoInfo(tracks[currentTrackGlobalIndex], currentTrackGlobalIndex)
+            : null,
+
+        // последние проигранные, свежие сначала
+        recent: (n = 10) => kivoRecent.slice(-Math.max(1, n)).reverse()
+            .map(i => (tracks[i] ? kivoInfo(tracks[i], i) : null))
+            .filter(Boolean),
+
+        // исполнители по частоте в библиотеке
+        artists: () => {
+            const map = new Map();
+            for (const f of tracks) {
+                for (const a of (f.parsedArtists || [])) {
+                    const key = kivoNorm(a);
+                    if (!key) continue;
+                    const e = map.get(key);
+                    if (e) e.count++;
+                    else map.set(key, { name: a, key, count: 1 });
+                }
+            }
+            return [...map.values()].sort((x, y) => y.count - x.count);
+        },
+
+        // все треки исполнителя; name — точное имя из artists()
+        byArtist: (name) => {
+            const key = kivoNorm(name);
+            const out = [];
+            tracks.forEach((f, i) => {
+                if ((f.parsedArtists || []).some(a => kivoNorm(a) === key)) out.push(kivoInfo(f, i));
+            });
+            return out;
+        },
+
+        // жанры библиотеки по частоте: [{ id, label, count }]
+        genres: () => genreCounts().map(([id, count]) => ({ id, label: genreLabel(id), count })),
+
+        // все треки жанра; понимает и синонимы («роковое» → «рок»)
+        byGenre: (name) => {
+            const G = window.KivoGenres;
+            const key = G ? G.norm(name) : String(name || '').toLowerCase().trim();
+            if (!key) return [];
+
+            const ids = new Set(G ? G.detect(name) : []);
+            for (const f of tracks) {
+                for (const g of (f.genres || [])) {
+                    if ((G ? G.norm(g) : String(g).toLowerCase()) === key) ids.add(g);
+                }
+            }
+            if (!ids.size) return [];
+
+            const out = [];
+            tracks.forEach((f, i) => {
+                if ((f.genres || []).some(g => ids.has(g))) out.push(kivoInfo(f, i));
+            });
+            return out;
+        },
+
+        // показать в боковом списке только этот жанр
+        filterByGenre: (name) => {
+            const G = window.KivoGenres;
+            const key = G ? G.norm(name) : String(name || '').toLowerCase().trim();
+            const list = genreCounts();
+
+            let hit = list.find(([id]) => (G ? G.norm(id) : String(id).toLowerCase()) === key);
+            if (!hit && G) {
+                const ids = G.detect(name);
+                hit = list.find(([id]) => ids.includes(id));
+            }
+            if (!hit) return false;
+
+            activeGenre = hit[0];
+            searchInput.value = '';
+            clearSearchBtn.style.display = 'none';
+            applyFilters('');
+            renderGenreMenu();
+            if (document.body.classList.contains('sidebar-hidden')) {
+                document.body.classList.remove('sidebar-hidden');
+            }
+            return true;
+        },
+
+        // поиск как в строке поиска, но без изменения UI
+        find: (q) => {
+            const pos = new Map();
+            tracks.forEach((f, i) => pos.set(f, i));
+            return searchTracks(q)
+                .map(f => (pos.has(f) ? kivoInfo(f, pos.get(f)) : null))
+                .filter(Boolean);
+        },
+
+        // включить трек по глобальному индексу
+        play: (index) => {
+            const f = tracks[index];
+            if (!f) return false;
+            playTrack(f);
+            return true;
+        },
+
+        // показать в боковом списке то же, что показал бы поиск
+        filterBy: (q) => {
+            const input = document.getElementById('search-input');
+            if (input) input.value = q;
+            executeSearch(q);
+        }
+    };
 
     function triggerSearch(artistName) {
         if (searchTimeout) clearTimeout(searchTimeout);
@@ -2377,12 +3924,903 @@
         }
     }
 
-    lyricsButton.addEventListener("click", () => {
-        lyricsMode = !lyricsMode;
-        currentFPS = lyricsMode ? 30 : 60;
-        document.body.classList.toggle("lyrics-mode", lyricsMode);
-        if(lyricsMode) setTimeout(() => scrollToCurrentLyric(), 550);
+    lyricsButton.addEventListener("click", () => setLyricsMode(!lyricsMode));
+    lyricsClose.addEventListener("click", () => setLyricsMode(false));
+
+    // Esc из режима текста (если не открыт редактор/настройки/волна)
+    document.addEventListener('keydown', (e) => {
+        if(e.key !== 'Escape' || !lyricsMode) return;
+        if(lrcEditorState.el && lrcEditorState.el.classList.contains('open')) return;
+        if(document.querySelector('.lrc-confirm-overlay')) return;
+        if(document.body.classList.contains('wave-view-open')) return;
+        const settingsModal = document.getElementById('settings-modal');
+        if(settingsModal && settingsModal.style.display === 'flex') return;
+        setLyricsMode(false);
     });
+
+    // до загрузки трека под плеером одна кнопка — «Добавить текст»
+    updateLyricsButton({});
+
+    // ══════════════════════════════════════════════════════
+    //  РУЧНОЙ РЕДАКТОР ТАЙМИНГОВ LRC
+    //  Зачем: скачанный LRC может быть от другой версии трека
+    //  или просто «плыть». Здесь строки можно перебрать руками,
+    //  отметить время по плееру и сохранить правку.
+    // ══════════════════════════════════════════════════════
+    const lrcEditButton = document.getElementById('lyrics-edit-button');
+
+    const lrcEditorState = {
+        el: null,
+        file: null,
+        rows: [],              // [{ time: секунды, text: строка, el }]
+        selected: 0,
+        dirty: false,
+        writeToDisk: true,
+        confirmEl: null,
+        subText: ''
+    };
+
+    function lrcFormatTime(seconds){
+        const total = Math.max(0, Number(seconds) || 0);
+        const cs = Math.round(total * 100);
+        const m = Math.floor(cs / 6000);
+        const rest = (cs % 6000) / 100;
+        return String(m).padStart(2, '0') + ':' + rest.toFixed(2).padStart(5, '0');
+    }
+
+    function lrcParseTime(value){
+        const raw = String(value || '').trim().replace(/^\[|\]$/g, '').replace(',', '.');
+        if(!raw) return null;
+        const mmss = raw.match(/^(\d{1,3}):(\d{1,2}(?:\.\d{1,3})?)$/);
+        if(mmss) return Number(mmss[1]) * 60 + Number(mmss[2]);
+        const onlySec = raw.match(/^(\d+(?:\.\d{1,3})?)$/);
+        if(onlySec) return Number(onlySec[1]);
+        return null;
+    }
+
+    // текст → строки редактора; пустые строки сохраняются как разделители
+    function lrcParseToRows(text){
+        const parsed = parseLrc(String(text || ''));
+        if(parsed.lines.length){
+            return parsed.lines.map(l => ({ time: l.time, text: l.text }));
+        }
+        const raw = String(text || '').split(/\r?\n/)
+            .map(line => {
+                // метатеги LRC вроде [ti:] / [ar:] не показываем,
+                // а обычный текст в скобках ([Куплет]) оставляем как есть
+                return line
+                    .replace(/^\s*\[(?:ti|ar|al|by|offset|re|ve|length|au|tool):[^\]]*\]\s*/i, '')
+                    .replace(/\s+$/, '');
+            });
+        // края обрезаем, а пустые строки внутри текста оставляем — это разрывы;
+        // несколько пустых подряд склеиваем в один, чтобы не копить пустоту
+        const rows = [];
+        for(const line of raw){
+            if(!line.trim() && rows.length && !rows[rows.length - 1].text) continue;
+            rows.push({ time: 0, text: line });
+        }
+        while(rows.length && !rows[0].text) rows.shift();
+        while(rows.length && !rows[rows.length - 1].text) rows.pop();
+        return rows;
+    }
+
+    function lrcSerializeRows(rows, file){
+        const list = rows.map(r => ({
+            time: Math.max(0, Number(r.time) || 0),
+            text: String(r.text || '').trim()
+        }));
+
+        // пустые строки-разделители сохраняем, но пустые края без времени — нет
+        while(list.length && !list[0].text && list[0].time <= 0.0001) list.shift();
+        while(list.length && !list[list.length - 1].text && list[list.length - 1].time <= 0.0001) list.pop();
+        if(!list.length) return '';
+
+        const anyTimed = list.some(r => r.time > 0.0001);
+        if(!anyTimed){
+            // текст без таймингов: пустая строка остаётся пустой строкой
+            return list.map(r => r.text).join('\n') + '\n';
+        }
+
+        // пустая строка без времени ничего не разделяет — выбрасываем
+        const sorted = list
+            .filter(r => r.text || r.time > 0.0001)
+            .sort((a, b) => a.time - b.time);
+
+        const head = [];
+        const sanitize = (value) => String(value || '').replace(/[[\]]/g, '').trim();
+        if(file && file.parsedTitle) head.push('[ti:' + sanitize(file.parsedTitle) + ']');
+        if(file && file.parsedArtists && file.parsedArtists.length){
+            head.push('[ar:' + sanitize(file.parsedArtists.join(', ')) + ']');
+        }
+        head.push('[by:KivoPlayer]');
+
+        return head.join('\n') + '\n' +
+            sorted.map(r => '[' + lrcFormatTime(r.time) + ']' + r.text).join('\n') + '\n';
+    }
+
+    function lrcPluralLines(n){
+        const n10 = n % 10;
+        const n100 = n % 100;
+        if(n10 === 1 && n100 !== 11) return 'строка';
+        if(n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return 'строки';
+        return 'строк';
+    }
+
+    function ensureLrcEditor(){
+        if(lrcEditorState.el) return lrcEditorState.el;
+
+        const root = document.createElement('div');
+        root.id = 'lrc-editor';
+        root.innerHTML = `
+            <div class="lrc-editor-panel" role="dialog" aria-modal="true" aria-label="Редактор текста и таймингов">
+                <div class="lrc-editor-head">
+                    <div class="lrc-editor-head-text">
+                        <div class="lrc-editor-title">Текст и тайминги</div>
+                        <div class="lrc-editor-sub" id="lrc-editor-sub"></div>
+                    </div>
+                    <button class="lrc-close" id="lrc-editor-close" title="Закрыть (Esc)">✕</button>
+                </div>
+                <div class="lrc-transport">
+                    <button class="lrc-play" id="lrc-play" title="Играть / пауза">▶</button>
+                    <span class="lrc-time-now" id="lrc-time-now">0:00</span>
+                    <input class="lrc-seek" id="lrc-seek" type="range" min="0" max="1000" step="1" value="0">
+                    <span class="lrc-time-dur" id="lrc-time-dur">—</span>
+                </div>
+                <div class="lrc-editor-tools">
+                    <button class="lrc-tool" id="lrc-add-line" title="Вставить строку после выделенной">＋ Строка</button>
+                    <button class="lrc-tool" id="lrc-add-blank" title="Вставить пустую строку-разделитель (разрыв между куплетами)">＋ Пустая</button>
+                    <button class="lrc-tool" id="lrc-add-text" title="Вставить готовый текст песни или LRC">＋ Текст</button>
+                    <button class="lrc-tool" id="lrc-shift-back" title="Сдвинуть все строки на 0.5 с назад">− 0.5 с</button>
+                    <button class="lrc-tool" id="lrc-shift-fwd" title="Сдвинуть все строки на 0.5 с вперёд">＋ 0.5 с</button>
+                    <button class="lrc-tool" id="lrc-stamp" title="Поставить выделенной строке текущее время (Пробел)">⏱ Отметить</button>
+                    <button class="lrc-tool" id="lrc-spread" title="Разложить строки без времени равномерно между размеченными строками (или от начала до конца трека)">⏲ Раскидать</button>
+                    <button class="lrc-tool" id="lrc-reset" title="Вернуть исходный текст трека">↺ Оригинал</button>
+                    <span class="lrc-status" id="lrc-status"></span>
+                </div>
+                <div class="lrc-paste" id="lrc-paste" hidden>
+                    <textarea class="lrc-paste-area" id="lrc-paste-area"
+                        placeholder="Вставьте текст песни целиком — одна строка станет одной строкой текста. Пустая строка — разрыв между куплетами. Готовый LRC с таймингами тоже подойдёт."></textarea>
+                    <div class="lrc-paste-actions">
+                        <span class="lrc-paste-hint">Ctrl+Enter — добавить · Esc — закрыть</span>
+                        <div class="lrc-paste-buttons">
+                            <button class="lrc-btn ghost" id="lrc-paste-cancel">Отмена</button>
+                            <button class="lrc-btn ghost" id="lrc-paste-replace">Заменить текст</button>
+                            <button class="lrc-btn primary" id="lrc-paste-add">Добавить</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="lrc-editor-rows" id="lrc-editor-rows"></div>
+                <div class="lrc-editor-foot">
+                    <label class="lrc-check" id="lrc-write-wrap">
+                        <input type="checkbox" id="lrc-write-disk">
+                        записать .lrc рядом с треком
+                    </label>
+                    <span class="lrc-hint">Пробел — время выделенной строке · пустая строка разделяет куплеты</span>
+                    <div class="lrc-foot-buttons">
+                        <button class="lrc-btn ghost" id="lrc-cancel">Отмена</button>
+                        <button class="lrc-btn primary" id="lrc-save">Сохранить</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(root);
+        lrcEditorState.el = root;
+
+        const $ = (sel) => root.querySelector(sel);
+
+        $('#lrc-editor-close').addEventListener('click', requestCloseLrcEditor);
+        $('#lrc-cancel').addEventListener('click', requestCloseLrcEditor);
+        $('#lrc-save').addEventListener('click', onLrcSaveClick);
+        $('#lrc-add-line').addEventListener('click', () => addLrcRow());
+        $('#lrc-add-blank').addEventListener('click', () => addLrcRow({ blank: true }));
+        $('#lrc-shift-back').addEventListener('click', () => shiftAllLrcRows(-0.5));
+        $('#lrc-shift-fwd').addEventListener('click', () => shiftAllLrcRows(0.5));
+        $('#lrc-stamp').addEventListener('click', () => stampLrcLine(lrcEditorState.selected));
+        $('#lrc-spread').addEventListener('click', spreadLrcTimes);
+        $('#lrc-reset').addEventListener('click', resetLrcRowsToOriginal);
+
+        $('#lrc-add-text').addEventListener('click', () => {
+            const panel = root.querySelector('#lrc-paste');
+            if(!panel.hidden){ closeLrcPaste(); return; }
+            openLrcPaste();
+        });
+        $('#lrc-paste-cancel').addEventListener('click', closeLrcPaste);
+        $('#lrc-paste-add').addEventListener('click', () => applyLrcPaste('append'));
+        $('#lrc-paste-replace').addEventListener('click', () => applyLrcPaste('replace'));
+
+        const pasteArea = root.querySelector('#lrc-paste-area');
+        pasteArea.addEventListener('keydown', (e) => {
+            if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){
+                e.preventDefault();
+                applyLrcPaste('append');
+            }
+        });
+
+        root.addEventListener('mousedown', (e) => {
+            if(e.target === root) requestCloseLrcEditor();
+        });
+
+        $('#lrc-play').addEventListener('click', () => {
+            if(audio.paused){
+                if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+                audio.play().catch(() => {});
+            } else {
+                audio.pause();
+            }
+        });
+
+        const seek = $('#lrc-seek');
+        seek.addEventListener('input', () => {
+            if(!isFinite(audio.duration) || audio.duration <= 0) return;
+            audio.currentTime = (Number(seek.value) / 1000) * audio.duration;
+            updateLrcTransport();
+        });
+
+        $('#lrc-write-disk').addEventListener('change', (e) => {
+            lrcEditorState.writeToDisk = !!e.target.checked;
+        });
+
+        document.addEventListener('keydown', onLrcEditorKeydown);
+
+        ['timeupdate', 'seeked', 'play', 'pause', 'loadedmetadata', 'durationchange', 'ended']
+            .forEach(evt => audio.addEventListener(evt, () => updateLrcTransport()));
+
+        return root;
+    }
+
+    function onLrcEditorKeydown(e){
+        const st = lrcEditorState;
+        if(!st.el || !st.el.classList.contains('open')) return;
+
+        if(e.key === 'Escape'){
+            e.preventDefault();
+            if(st.confirmEl){ closeLrcConfirm(); return; }
+            const pastePanel = st.el.querySelector('#lrc-paste');
+            if(pastePanel && !pastePanel.hidden){ closeLrcPaste(); return; }
+            requestCloseLrcEditor();
+            return;
+        }
+        if(st.confirmEl) return;   // пока открыт диалог, пробел не отмечает строки
+        if(e.code !== 'Space') return;
+
+        const t = e.target;
+        if(t && (t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        if(t && t.tagName === 'INPUT'){
+            if(t.classList.contains('lrc-text-input')) return;      // в тексте пробел нужен
+            if(t.type === 'checkbox' || t.type === 'range') return; // не мешаем чекбоксу и ползунку
+        }
+
+        e.preventDefault();
+        stampLrcLine(st.selected);
+    }
+
+    async function openLrcEditor(){
+        const file = tracks[currentTrackGlobalIndex];
+        if(!file){
+            showNotification('Сначала включите трек');
+            return;
+        }
+
+        ensureLrcEditor();
+        const st = lrcEditorState;
+        const root = st.el;
+
+        // .lrc читается асинхронно — дождёмся, чтобы редактор не открылся пустым
+        if(file.lyricsCurrent == null && !file.lyricsEdited){
+            try { await loadLyrics(file); } catch(_) {}
+        }
+        if(tracks[currentTrackGlobalIndex] !== file) return;
+
+        st.file = file;
+        st.dirty = false;
+        st.selected = 0;
+
+        const currentText = file.lyricsEdited != null
+            ? file.lyricsEdited
+            : (file.lyricsCurrent != null ? file.lyricsCurrent : (file.lyricsOriginal || ''));
+        st.rows = lrcParseToRows(currentText);
+        if(!st.rows.length) st.rows.push({ time: 0, text: '' });
+
+        const sub = root.querySelector('#lrc-editor-sub');
+        const sourceLabel = file.lyricsEdited != null ? 'ручная правка'
+            : file.lyricsSource === 'tag' ? 'текст из тега'
+            : file.lyricsSource === 'lrc' ? 'текст из .lrc'
+            : currentText.trim() ? 'текст без таймингов'
+            : 'текста нет';
+        st.subText = file.parsedTitle + ' — ' + sourceLabel;
+        sub.textContent = st.subText + ' · ' + st.rows.length + ' ' + lrcPluralLines(st.rows.length);
+
+        const canWriteDisk = !!currentDirHandle;
+        const wrap = root.querySelector('#lrc-write-wrap');
+        const cb = root.querySelector('#lrc-write-disk');
+        cb.disabled = !canWriteDisk;
+        wrap.classList.toggle('disabled', !canWriteDisk);
+        wrap.title = canWriteDisk
+            ? 'Файл .lrc будет создан или перезаписан рядом с треком'
+            : 'Папка открыта без доступа на запись — правка сохранится внутри приложения';
+        cb.checked = canWriteDisk && st.writeToDisk;
+
+        root.classList.add('open');
+        document.body.classList.add('lrc-editor-open');
+        closeLrcPaste();
+        renderLrcRows();
+        updateLrcStatus();
+        updateLrcTransport();
+        root.querySelector('#lrc-editor-rows').scrollTop = 0;
+
+        // в треке нет ни текста, ни таймингов — сразу предлагаем вставить текст
+        if(!currentText.trim()) openLrcPaste();
+    }
+
+    function closeLrcEditor(opts){
+        const st = lrcEditorState;
+        if(!st.el || !st.el.classList.contains('open')) return;
+        closeLrcConfirm();
+        closeLrcPaste();
+        st.el.classList.remove('open');
+        document.body.classList.remove('lrc-editor-open');
+        st.file = null;
+        st.rows = [];
+        st.selected = 0;
+        st.dirty = false;
+        st.el.querySelector('#lrc-editor-rows').innerHTML = '';
+    }
+
+    // закрытие с проверкой несохранённых правок — своим диалогом, без системного confirm
+    function requestCloseLrcEditor(){
+        const st = lrcEditorState;
+        if(!st.el || !st.el.classList.contains('open')) return;
+        if(!st.dirty){
+            closeLrcEditor({ force: true });
+            return;
+        }
+        showLrcDiscardConfirm();
+    }
+
+    function showLrcDiscardConfirm(){
+        const st = lrcEditorState;
+        if(st.confirmEl) return;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'lrc-confirm-overlay';
+        overlay.innerHTML = `
+            <div class="lrc-confirm" role="alertdialog" aria-modal="true">
+                <div class="lrc-confirm-title">Закрыть без сохранения?</div>
+                <div class="lrc-confirm-text">Изменения таймингов ещё не сохранены и будут потеряны.</div>
+                <div class="lrc-confirm-actions">
+                    <button class="lrc-btn ghost" id="lrc-confirm-back">Продолжить</button>
+                    <button class="lrc-btn danger" id="lrc-confirm-discard">Выйти</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        st.confirmEl = overlay;
+
+        overlay.querySelector('#lrc-confirm-back').addEventListener('click', closeLrcConfirm);
+        overlay.querySelector('#lrc-confirm-discard').addEventListener('click', () => {
+            closeLrcConfirm();
+            closeLrcEditor({ force: true });
+        });
+        overlay.addEventListener('mousedown', (e) => {
+            if(e.target === overlay) closeLrcConfirm();
+        });
+        overlay.querySelector('#lrc-confirm-back').focus();
+    }
+
+    function closeLrcConfirm(){
+        const st = lrcEditorState;
+        if(!st.confirmEl) return;
+        st.confirmEl.remove();
+        st.confirmEl = null;
+    }
+
+    function lrcMiniButton(label, title, extraClass, onClick){
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'lrc-mini' + (extraClass ? ' ' + extraClass : '');
+        btn.textContent = label;
+        btn.title = title;
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onClick();
+        });
+        return btn;
+    }
+
+    function renderLrcRows(){
+        const st = lrcEditorState;
+        if(!st.el) return;
+        const box = st.el.querySelector('#lrc-editor-rows');
+        box.innerHTML = '';
+
+        const sub = st.el.querySelector('#lrc-editor-sub');
+        if(sub && st.subText){
+            sub.textContent = st.subText + ' · ' + st.rows.length + ' ' + lrcPluralLines(st.rows.length);
+        }
+
+        st.rows.forEach((row, index) => {
+            const rowEl = document.createElement('div');
+            rowEl.className = 'lrc-row' + (index === st.selected ? ' selected' : '')
+                + (row.text && row.text.trim() ? '' : ' is-empty');
+            rowEl.dataset.index = String(index);
+
+            const num = document.createElement('div');
+            num.className = 'lrc-num';
+            num.textContent = index + 1;
+            num.title = 'Перейти к этой строке';
+            num.addEventListener('click', () => {
+                audio.currentTime = Math.max(0, row.time);
+                audio.play().catch(() => {});
+                selectLrcRow(index);
+            });
+
+            const time = document.createElement('input');
+            time.type = 'text';
+            time.className = 'lrc-time';
+            time.spellcheck = false;
+            time.value = lrcFormatTime(row.time);
+            time.title = 'Время строки: мм:сс.сотые';
+            time.addEventListener('focus', () => selectLrcRow(index, false));
+            time.addEventListener('change', () => {
+                const seconds = lrcParseTime(time.value);
+                if(seconds === null){
+                    time.classList.add('invalid');
+                    return;
+                }
+                time.classList.remove('invalid');
+                row.time = Math.round(seconds * 100) / 100;
+                time.value = lrcFormatTime(row.time);
+                markLrcDirty();
+            });
+            time.addEventListener('keydown', (e) => {
+                if(e.key === 'Enter'){ e.preventDefault(); time.blur(); }
+            });
+
+            const text = document.createElement('input');
+            text.type = 'text';
+            text.className = 'lrc-text-input';
+            text.spellcheck = false;
+            text.placeholder = 'текст строки · пусто = разрыв';
+            text.value = row.text;
+            text.addEventListener('focus', () => selectLrcRow(index, false));
+            text.addEventListener('input', () => {
+                row.text = text.value;
+                rowEl.classList.toggle('is-empty', !text.value.trim());
+                markLrcDirty();
+            });
+            // вставка многострочного текста раскладывается на строки
+            text.addEventListener('paste', (e) => onLrcRowPaste(e, index));
+            text.addEventListener('keydown', (e) => {
+                if(e.key === 'Enter'){
+                    e.preventDefault();
+                    const nextRow = st.rows[index + 1];
+                    const nextInput = nextRow && nextRow.el && nextRow.el.querySelector('.lrc-text-input');
+                    if(nextInput){
+                        selectLrcRow(index + 1);
+                        nextInput.focus();
+                    } else {
+                        text.blur();
+                    }
+                }
+            });
+
+            const actions = document.createElement('div');
+            actions.className = 'lrc-row-actions';
+            actions.appendChild(lrcMiniButton('⏱', 'Взять текущее время (Пробел)', 'stamp', () => stampLrcLine(index)));
+            actions.appendChild(lrcMiniButton('✕', 'Удалить строку', 'danger', () => removeLrcRow(index)));
+
+            rowEl.append(num, time, text, actions);
+            rowEl.addEventListener('mousedown', (e) => {
+                if(e.target.closest('input, button')) return;
+                selectLrcRow(index);
+            });
+
+            row.el = rowEl;
+            box.appendChild(rowEl);
+        });
+    }
+
+    function selectLrcRow(index, scroll = true){
+        const st = lrcEditorState;
+        if(!st.rows.length) return;
+        st.selected = Math.max(0, Math.min(index, st.rows.length - 1));
+        st.el.querySelectorAll('.lrc-row').forEach((el, i) => {
+            el.classList.toggle('selected', i === st.selected);
+        });
+        if(scroll){
+            const el = st.rows[st.selected].el;
+            if(el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }
+
+    function stampLrcLine(index, opts){
+        const st = lrcEditorState;
+        const row = st.rows[index];
+        if(!row) return;
+        if(!isFinite(audio.currentTime)) return;
+        // время берём у того трека, для которого открыт редактор
+        if(st.file && tracks[currentTrackGlobalIndex] !== st.file){
+            showNotification('Трек сменился — откройте редактор таймингов заново');
+            return;
+        }
+
+        row.time = Math.max(0, Math.round(audio.currentTime * 100) / 100);
+        const rowEl = row.el;
+        if(rowEl){
+            const input = rowEl.querySelector('.lrc-time');
+            if(input){
+                input.value = lrcFormatTime(row.time);
+                input.classList.remove('invalid');
+            }
+            rowEl.classList.add('stamped');
+            setTimeout(() => rowEl.classList.remove('stamped'), 450);
+        }
+        markLrcDirty();
+
+        const advance = !(opts && opts.advance === false);
+        if(advance && index + 1 < st.rows.length) selectLrcRow(index + 1);
+        else selectLrcRow(index, false);
+    }
+
+    function addLrcRow(opts){
+        const st = lrcEditorState;
+        const blank = !!(opts && opts.blank);
+        const rows = st.rows;
+        const at = rows.length ? Math.min(rows.length, st.selected + 1) : 0;
+        const prev = rows[at - 1];
+        const next = rows[at];
+
+        let time = Math.max(0, audio.currentTime || 0);
+        if(prev){
+            time = prev.time + 2;
+            if(next && next.time > prev.time) time = prev.time + (next.time - prev.time) / 2;
+        }
+
+        rows.splice(at, 0, { time: Math.round(time * 100) / 100, text: '' });
+        st.selected = at;
+        renderLrcRows();
+        markLrcDirty();
+
+        if(blank){
+            // пустая строка-разделитель: сразу переходим к следующей, чтобы не мешать набивать текст
+            selectLrcRow(at + 1 < st.rows.length ? at + 1 : at);
+            updateLrcStatus('добавлен разрыв между куплетами');
+            return;
+        }
+
+        const input = rows[at].el && rows[at].el.querySelector('.lrc-text-input');
+        if(input) input.focus();
+    }
+
+    function removeLrcRow(index){
+        const st = lrcEditorState;
+        if(!st.rows[index]) return;
+        st.rows.splice(index, 1);
+        if(!st.rows.length) st.rows.push({ time: 0, text: '' });
+        st.selected = Math.min(index, st.rows.length - 1);
+        renderLrcRows();
+        markLrcDirty();
+    }
+
+    function shiftAllLrcRows(delta){
+        const st = lrcEditorState;
+        if(!st.rows.length) return;
+        st.rows.forEach(row => {
+            row.time = Math.max(0, Math.round((row.time + delta) * 100) / 100);
+            const input = row.el && row.el.querySelector('.lrc-time');
+            if(input){
+                input.value = lrcFormatTime(row.time);
+                input.classList.remove('invalid');
+            }
+        });
+        markLrcDirty();
+        updateLrcStatus((delta > 0 ? '+' : '−') + Math.abs(delta).toFixed(1) + ' с ко всем строкам');
+    }
+
+    function resetLrcRowsToOriginal(){
+        const st = lrcEditorState;
+        const file = st.file;
+        if(!file) return;
+        const original = file.lyricsOriginal || '';
+        st.rows = lrcParseToRows(original);
+        if(!st.rows.length) st.rows.push({ time: 0, text: '' });
+        st.selected = 0;
+        renderLrcRows();
+        markLrcDirty();
+        updateLrcStatus(original.trim() ? 'исходный текст восстановлен' : 'исходного текста нет');
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  ВСТАВКА ОБЫЧНОГО ТЕКСТА
+    //  Текст можно вставить целиком в панель «＋ Текст» или
+    //  прямо в поле строки — многострочная вставка разложится
+    //  на строки редактора.
+    // ══════════════════════════════════════════════════════
+    function openLrcPaste(prefill){
+        const st = lrcEditorState;
+        if(!st.el) return;
+        const panel = st.el.querySelector('#lrc-paste');
+        const area = st.el.querySelector('#lrc-paste-area');
+        if(!panel || !area) return;
+        area.value = prefill || '';
+        panel.hidden = false;
+        area.focus();
+        if(!prefill) area.setSelectionRange(area.value.length, area.value.length);
+    }
+
+    function closeLrcPaste(){
+        const st = lrcEditorState;
+        if(!st.el) return;
+        const panel = st.el.querySelector('#lrc-paste');
+        const area = st.el.querySelector('#lrc-paste-area');
+        if(panel) panel.hidden = true;
+        if(area) area.value = '';
+    }
+
+    function applyLrcPaste(mode){
+        const st = lrcEditorState;
+        if(!st.el) return;
+        const area = st.el.querySelector('#lrc-paste-area');
+        const rows = lrcParseToRows(area ? area.value : '');
+        if(!rows.length){
+            showNotification('Вставьте текст песни — хотя бы одну непустую строку');
+            return;
+        }
+
+        const hasContent = st.rows.some(r => String(r.text || '').trim() || r.time > 0);
+        if(mode === 'replace' || !hasContent){
+            st.rows = rows;
+            st.selected = 0;
+        } else {
+            // хвостовую пустую строку заменяем вставленным текстом
+            while(st.rows.length && !String(st.rows[st.rows.length - 1].text || '').trim()
+                && st.rows[st.rows.length - 1].time <= 0){
+                st.rows.pop();
+            }
+            st.selected = st.rows.length;
+            st.rows = st.rows.concat(rows);
+        }
+
+        closeLrcPaste();
+        renderLrcRows();
+        markLrcDirty();
+        selectLrcRow(st.selected);
+        const hasTimes = st.rows.some(r => r.time > 0);
+        updateLrcStatus(
+            'текст добавлен: ' + rows.length + ' ' + lrcPluralLines(rows.length)
+            + (hasTimes ? '' : ' · «Раскидать» расставит время')
+        );
+    }
+
+    // многострочная вставка прямо в строку (из буфера обмена)
+    function insertLrcRows(index, rows){
+        const st = lrcEditorState;
+        if(!rows.length) return;
+        const target = st.rows[index];
+        const replaceTarget = target && !String(target.text || '').trim();
+        const targetTime = target && target.time > 0.0001 ? target.time : 0;
+
+        if(replaceTarget){
+            st.rows.splice(index, 1, ...rows);
+            st.selected = index;
+        } else {
+            st.rows.splice(index + 1, 0, ...rows);
+            st.selected = index + 1;
+        }
+
+        // строка была с временем — первая вставленная его наследует
+        if(targetTime > 0 && rows[0].time <= 0.0001) rows[0].time = targetTime;
+
+        renderLrcRows();
+        markLrcDirty();
+        selectLrcRow(st.selected);
+        updateLrcStatus('вставлено строк: ' + rows.length);
+    }
+
+    function onLrcRowPaste(e, index){
+        const text = e.clipboardData ? e.clipboardData.getData('text') : '';
+        if(!text) return;
+        const multiline = /[\r\n]/.test(text);
+        const timed = /\[\d{1,3}:\d{1,2}(?:\.\d+)?\]/.test(text);
+        if(!multiline && !timed) return;   // обычная вставка одного слова
+
+        const rows = lrcParseToRows(text);
+        if(!rows.length) return;
+        e.preventDefault();
+        insertLrcRows(index, rows);
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  РАСКЛАДКА ТЕКСТА ПО ВРЕМЕНИ
+    //  Строки без времени раскладываются равномерно между
+    //  размеченными соседями (или от начала до конца трека).
+    // ══════════════════════════════════════════════════════
+    function spreadLrcTimes(){
+        const st = lrcEditorState;
+        if(!st.rows.length){
+            updateLrcStatus('нет строк');
+            return;
+        }
+
+        const duration = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+        let changed = 0;
+        let i = 0;
+
+        while(i < st.rows.length){
+            if(st.rows[i].time > 0.0001){ i++; continue; }
+
+            let end = i;
+            while(end < st.rows.length && st.rows[end].time <= 0.0001) end++;
+            const count = end - i;
+            const start = i > 0 ? st.rows[i - 1].time : 0;
+
+            let finish = end < st.rows.length ? st.rows[end].time : duration;
+            if(!(finish > start)) finish = start + Math.max(3, count * 3);
+
+            // пустые строки-разрывы должны занимать меньше времени,
+            // чем строки с текстом, иначе между куплетами повисает пауза
+            const weights = [];
+            let total = 0;
+            for(let k = 0; k < count; k++){
+                const weight = String(st.rows[i + k].text || '').trim() ? 1 : 0.25;
+                weights.push(weight);
+                total += weight;
+            }
+
+            // в конце блока оставляем один «шаг» до следующей размеченной строки
+            const step = (finish - start) / (total + 1);
+            let acc = 0;
+            for(let k = 0; k < count; k++){
+                acc += weights[k];
+                st.rows[i + k].time = Math.round((start + step * acc) * 100) / 100;
+                changed++;
+            }
+            i = end;
+        }
+
+        if(!changed){
+            updateLrcStatus('у всех строк уже есть время');
+            return;
+        }
+
+        // обновляем поля времени без перерисовки списка
+        st.rows.forEach(row => {
+            const input = row.el && row.el.querySelector('.lrc-time');
+            if(input){
+                input.value = lrcFormatTime(row.time);
+                input.classList.remove('invalid');
+            }
+        });
+        markLrcDirty();
+        updateLrcStatus('время распределено: ' + changed + ' ' + lrcPluralLines(changed));
+    }
+
+    function markLrcDirty(){
+        lrcEditorState.dirty = true;
+        updateLrcStatus();
+    }
+
+    function updateLrcStatus(custom){
+        const st = lrcEditorState;
+        if(!st.el) return;
+        const el = st.el.querySelector('#lrc-status');
+        if(!el) return;
+
+        const total = st.rows.length;
+        const timed = st.rows.filter(r => r.time > 0).length;
+        const empty = st.rows.filter(r => !String(r.text || '').trim()).length;
+        const base = custom || (total
+            ? total + ' ' + lrcPluralLines(total)
+                + (timed ? ' · со временем ' + timed : ' · без таймингов')
+                + (empty ? ' · пустых ' + empty : '')
+            : 'нет строк');
+
+        el.textContent = st.dirty ? base + ' · не сохранено' : base;
+        el.classList.toggle('dirty', st.dirty);
+        el.classList.remove('saved');
+    }
+
+    function updateLrcTransport(){
+        const st = lrcEditorState;
+        if(!st.el || !st.el.classList.contains('open')) return;
+
+        const now = isFinite(audio.currentTime) ? audio.currentTime : 0;
+        const duration = isFinite(audio.duration) ? audio.duration : 0;
+
+        st.el.querySelector('#lrc-time-now').textContent = formatTime(now);
+        st.el.querySelector('#lrc-time-dur').textContent = duration ? formatTime(duration) : '—';
+
+        const seek = st.el.querySelector('#lrc-seek');
+        if(document.activeElement !== seek){
+            seek.value = duration ? String(Math.round(now / duration * 1000)) : '0';
+        }
+
+        st.el.querySelector('#lrc-play').textContent = audio.paused ? '▶' : '❚❚';
+
+        // подсветка строки, которая звучит сейчас
+        let currentIndex = -1;
+        let currentTime = -Infinity;
+        st.rows.forEach((row, i) => {
+            if(row.time <= now + 0.05 && row.time >= currentTime){
+                currentIndex = i;
+                currentTime = row.time;
+            }
+        });
+        st.rows.forEach((row, i) => {
+            if(row.el) row.el.classList.toggle('is-current', i === currentIndex);
+        });
+    }
+
+    async function onLrcSaveClick(){
+        const st = lrcEditorState;
+        const file = st.file;
+        if(!file || !st.el) return;
+
+        const cb = st.el.querySelector('#lrc-write-disk');
+        const wantDisk = !!currentDirHandle && !!cb && cb.checked && !cb.disabled;
+
+        // разрешение спрашиваем первым действием, пока живёт жест пользователя
+        let diskPermission = null;
+        if(wantDisk){
+            try {
+                diskPermission = await currentDirHandle.requestPermission({ mode: 'readwrite' });
+            } catch(_) {
+                diskPermission = 'denied';
+            }
+        }
+
+        const lrcText = lrcSerializeRows(st.rows, file);
+        const saved = await saveLyricsEdit(lyricsKeyFor(file), lrcText, file.lyricsOriginal || null);
+        if(!saved){
+            showNotification('Не удалось сохранить правку');
+            return;
+        }
+
+        file.lyricsEdited = lrcText;
+        if(tracks[currentTrackGlobalIndex] === file) applyLyrics(file, lrcText, 'edit');
+
+        let note = 'Тайминги сохранены в приложении';
+        if(wantDisk && diskPermission === 'granted'){
+            try {
+                const written = await writeLrcToDisk(file, lrcText);
+                note = written.ok
+                    ? 'Тайминги сохранены · ' + written.name
+                    : 'Тайминги сохранены в приложении · .lrc не записан';
+            } catch(e){
+                console.warn('writeLrcToDisk:', e);
+                note = 'Тайминги сохранены в приложении · .lrc не записан';
+            }
+        }
+
+        closeLrcEditor({ force: true });
+        showNotification(note);
+    }
+
+    async function writeLrcToDisk(file, lrcText){
+        const rootHandle = currentDirHandle;
+        if(!rootHandle) return { ok: false };
+
+        const raw = String(file._path || file.webkitRelativePath || file.name).replace(/\\/g, '/');
+        const parts = raw.split('/').filter(Boolean);
+        if(parts.length > 1) parts.shift();   // имя корневой папки
+        parts.pop();                          // имя самого трека
+
+        let dir = rootHandle;
+        for(const part of parts){
+            dir = await dir.getDirectoryHandle(part);
+        }
+
+        const lrcName = file.name.replace(/\.[^/.]+$/, '') + '.lrc';
+        const handle = await dir.getFileHandle(lrcName, { create: true });
+        const writable = await handle.createWritable();
+        await writable.write(lrcText);
+        await writable.close();
+
+        // чтобы синхронизация и повторное открытие видели уже новый текст
+        file.lrcFile = new File([lrcText], lrcName, { type: 'text/plain' });
+
+        return { ok: true, name: lrcName };
+    }
+
+    lrcEditButton.addEventListener('click', openLrcEditor);
 
     searchInput.addEventListener('input', (e) => {
         const query = e.target.value.toLowerCase().trim();
@@ -2404,7 +4842,7 @@
     btnPlayPause.addEventListener('click', () => {
         if (!audioCtx) return;
         if (audioCtx.state === 'suspended') audioCtx.resume();
-        if (audio.paused) audio.play();
+        if (audio.paused) audio.play().catch(() => {});
         else audio.pause();
     });
 
@@ -2428,8 +4866,14 @@
         return filteredTracks.indexOf(tracks[currentTrackGlobalIndex]);
     }
 
-    function playNext() {
+    function playNext(opts = {}) {
         if (waveMode) {
+            // если пользователь отматывал назад — сначала идём вперёд по истории
+            if (!opts.ignoreForward) {
+                const fwd = RecoEngine.goForward();
+                if (fwd) return playTrack(fwd, { fromHistory: true });
+            }
+            // иначе берём следующий трек из очереди (она уже добита до 5)
             const next = RecoEngine.popNext();
             if (next) return playTrack(next);
         }
@@ -2440,12 +4884,21 @@
     btnNext.addEventListener('click', () => playNext());
 
     btnPrev.addEventListener('click', () => {
-        const fi = getFilteredIndex();
         if (audio.currentTime > 5) { audio.currentTime = 0; return; }
+        // в волне — возврат к реально игравшему треку, а не новый рандом
+        if (waveMode) {
+            const prev = RecoEngine.goBack();
+            if (prev) return playTrack(prev, { fromHistory: true });
+        }
+        const fi = getFilteredIndex();
         if (fi > 0) playTrack(filteredTracks[fi - 1]);
     });
 
-    audio.addEventListener('ended', () => playNext());
+    audio.addEventListener('ended', () => {
+        // не переключаем трек, пока открыт редактор таймингов
+        if(lrcEditorState.el && lrcEditorState.el.classList.contains('open')) return;
+        playNext();
+    });
 
     audio.addEventListener('timeupdate', () => {
         const currentTime = audio.currentTime;
@@ -2488,7 +4941,7 @@
     if ('mediaSession' in navigator) {
         navigator.mediaSession.setActionHandler('play', () => {
             if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-            audio.play();
+            audio.play().catch(() => {});
         });
 
         navigator.mediaSession.setActionHandler('pause', () => {
@@ -2648,7 +5101,7 @@
 
         if (waveMode && currentTrackGlobalIndex !== -1) {
             RecoEngine.onVote(tracks[currentTrackGlobalIndex], voteState);
-            setTimeout(() => playNext(), 1500)
+            setTimeout(() => playNext({ ignoreForward: true }), 1500)
         }
     });
 
@@ -2721,5 +5174,6 @@
     }
 </script>
 <script src="wave_mode.js"></script>
+<script src="voice-assistant.js"></script>
 </body>
 </html>

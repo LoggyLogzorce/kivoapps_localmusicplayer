@@ -4,6 +4,76 @@
 const waveBtn = document.getElementById('wave-btn');
 let waveMode = false;
 
+// полноэкранный вид «Очередь и история» — открывается кнопкой, по умолчанию закрыт
+let waveViewOpen = false;
+let lyricsBeforeQueueView = false;   // вернуть режим текста после закрытия панели
+
+const queueBtn = document.getElementById('queue-btn');
+const queueBadge = document.getElementById('queue-badge');
+const waveViewClose = document.getElementById('wave-view-close');
+
+let waveViewTimers = [];
+
+function clearWaveViewTimers() {
+    waveViewTimers.forEach(clearTimeout);
+    waveViewTimers = [];
+}
+
+function setWaveViewOpen(open) {
+    if (open && !waveMode) return;          // очередь и история живут только в волне
+    if (open === waveViewOpen) return;      // уже в нужном состоянии
+
+    const body = document.body;
+    clearWaveViewTimers();
+
+    waveViewOpen = open;
+    if (queueBtn) queueBtn.classList.toggle('active', open);
+
+    if (open) {
+        body.classList.remove('wave-view-closing', 'wave-view-settling');
+        body.classList.add('wave-view-open', 'wave-view-opening');
+        waveViewTimers.push(setTimeout(() => body.classList.remove('wave-view-opening'), 760));
+
+        // панель занимает пол-экрана — режим текста на время прячем
+        lyricsBeforeQueueView = (typeof lyricsMode !== 'undefined') && lyricsMode;
+        if (lyricsBeforeQueueView) {
+            lyricsMode = false;
+            body.classList.remove('lyrics-mode');
+        }
+        renderWavePanel();
+    } else {
+        // сначала даём панели уехать, и только потом возвращаем раскладку
+        body.classList.remove('wave-view-opening');
+        body.classList.add('wave-view-closing');
+
+        waveViewTimers.push(setTimeout(() => {
+            body.classList.remove('wave-view-open', 'wave-view-closing');
+            body.classList.add('wave-view-settling');
+            waveViewTimers.push(setTimeout(() => body.classList.remove('wave-view-settling'), 420));
+
+            if (lyricsBeforeQueueView) {
+                lyricsBeforeQueueView = false;
+                lyricsMode = true;
+                currentFPS = 30;
+                body.classList.add('lyrics-mode');
+                setTimeout(() => {
+                    if (typeof scrollToCurrentLyric === 'function') scrollToCurrentLyric();
+                }, 550);
+            }
+            if (typeof renderPlaylist === 'function') {
+                renderPlaylist();           // сайдбар вернулся — пересчёт виртуализации
+            }
+        }, 230));
+    }
+}
+
+if (queueBtn) queueBtn.addEventListener('click', () => setWaveViewOpen(!waveViewOpen));
+if (waveViewClose) waveViewClose.addEventListener('click', () => setWaveViewOpen(false));
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && waveViewOpen) setWaveViewOpen(false);
+});
+
 waveBtn.addEventListener('click', async () => {
     waveMode = !waveMode;
     waveBtn.classList.toggle('active', waveMode);
@@ -26,36 +96,48 @@ waveBtn.addEventListener('click', async () => {
             btnDislike.classList.add('reveal');
         }, 180);
     } else {
-        btnFavorite.style.display = 'none';
-        btnDislike.style.display  = 'none';
         btnFavorite.classList.remove('reveal');
         btnDislike.classList.remove('reveal');
+        // даём кнопкам плавно уйти, и только потом убираем из раскладки
+        setTimeout(() => {
+            if (!waveMode) {
+                btnFavorite.style.display = 'none';
+                btnDislike.style.display  = 'none';
+            }
+        }, 380);
     }
 
     // ── Логика движка ──
     if (waveMode) {
-        await RecoEngine.init();
-        if (currentTrackGlobalIndex !== -1) {
-            RecoEngine.onTrackStarted(tracks[currentTrackGlobalIndex]);
+        // полноэкранный вид не совместим с режимом текста
+        if (typeof lyricsMode !== 'undefined' && lyricsMode) {
+            lyricsMode = false;
+            document.body.classList.remove('lyrics-mode');
         }
+        await RecoEngine.init();
+        const cur = currentTrackGlobalIndex !== -1 ? tracks[currentTrackGlobalIndex] : null;
+        RecoEngine.start(cur);
         RecoEngine.preloadAll();
+        renderWavePanel();
     } else {
         RecoEngine.stopPreload();
         RecoEngine.queue = [];
-        RecoEngine.recentKeys = [];
         voteState = 0;
         renderVote();
+        if (waveViewOpen) setWaveViewOpen(false);
     }
 });
 
 // ══════════════════════════════════════════════════════
 //  RECOMMENDATION ENGINE (Wave mode)
 // ══════════════════════════════════════════════════════
-const QUEUE_SIZE = 5;
+const QUEUE_SIZE = 5;              // сколько треков держим "впереди"
 const FEATURES_VERSION = 1;
-const RECO_HISTORY = 12;   // сколько последних треков не повторять
+const RECO_HISTORY = 12;           // сколько последних треков не повторять
 const RECO_COOLDOWN_MS = 2 * 60 * 60 * 1000;    // 2 часа
-const POOL_SIZE = 15
+const POOL_SIZE = 15;
+const HISTORY_MAX = 100;           // сколько треков помним в истории
+const HISTORY_UI_MAX = 40;         // сколько строк истории рисуем
 
 // живёт, пока открыта вкладка
 const sessionPlayed = new Set();
@@ -64,13 +146,23 @@ const RecoEngine = {
     db: null,
     stats: new Map(),           // key -> { playCount, totalListened, avgCompletion, vote, skipCount, lastPlayed }
     features: new Map(),        // key -> { bpm, energy, zcr, dynamics, duration, v }
-    queue: [],
-    recentKeys: [],
+    queue: [],                  // ТОЛЬКО предстоящие треки (<= QUEUE_SIZE)
+    history: [],                // прослушанное, в порядке воспроизведения
+    historyIndex: -1,           // позиция текущего трека в history
+    current: null,              // текущий файл
     featuresPending: new Set(),
     _preloading: false,
 
     key(file) {
         return `${file.name}|${file.size}`;
+    },
+
+    isSame(a, b) {
+        return !!a && !!b && this.key(a) === this.key(b);
+    },
+
+    isPlayable(file) {
+        return !!file && tracks.indexOf(file) !== -1;
     },
 
     async init() {
@@ -166,104 +258,202 @@ const RecoEngine = {
         return Math.max(-1.5, Math.min(1.5, p));
     },
 
-    // ─── Queue ──────────────────────────────────────────
-    buildQueue(seedFile) {
-        const seedFeat  = this.features.get(this.key(seedFile));
-        const recent    = new Set(this.recentKeys);
-        const now       = Date.now();
-        const candidates = [];
+    // ═══════════════════════════════════════════════════
+    //  QUEUE (append-only)
+    // ═══════════════════════════════════════════════════
 
+    // Собираем пул кандидатов с заданной строгостью фильтров
+    _collectCandidates(seedFile, opts) {
+        const seedFeat = seedFile ? this.features.get(this.key(seedFile)) : null;
+        const now = Date.now();
+        const queueKeys = new Set(this.queue.map(t => this.key(t)));
+        const curKey = seedFile ? this.key(seedFile) : null;
+        const playingKey = this.current ? this.key(this.current) : null;
+        const recent = opts.recent > 0
+            ? new Set(this.history.slice(-opts.recent).map(t => this.key(t)))
+            : new Set();
+
+        const out = [];
         for (const track of tracks) {
-            if (track === seedFile) continue;
-
             const k = this.key(track);
+            if (k === curKey) continue;              // не сам сид
+            if (k === playingKey) continue;          // не то, что играет прямо сейчас
+            if (queueKeys.has(k)) continue;          // уже стоит в очереди
+            if (recent.has(k)) continue;             // только что играл
+
             const stat = this.stats.get(k);
+            if (!opts.disliked && stat && stat.vote === -1) continue;
+            if (opts.cooldown && stat && stat.lastPlayed
+                && (now - stat.lastPlayed) < RECO_COOLDOWN_MS) continue;
 
-            // 1. явный дизлайк — никогда
-            if (stat && stat.vote === -1) continue;
-
-            // 2. последние N треков подряд (A→B→A→B)
-            if (recent.has(k)) continue;
-
-            // 3. играл в этой сессии
-            if (sessionPlayed.has(k)) continue;
-
-            // 4. карантин 2 часа
-            if (stat && stat.lastPlayed && (now - stat.lastPlayed) < RECO_COOLDOWN_MS) continue;
-
-            const feat = this.features.get(k);
-            const sim = this.similarity(seedFeat, feat);
+            const sim = this.similarity(seedFeat, this.features.get(k));
             const pref = this.preferenceScore(stat);
             const novelty = stat ? Math.max(0, 1 - stat.playCount * 0.15) : 1;
+            // уже игравшее в этой сессии — не запрет, но пониженный приоритет
+            const freshness = sessionPlayed.has(k) ? 0.6 : 1;
 
-            const score = 0.55 * sim + 0.30 * pref + 0.15 * novelty;
-            candidates.push({ track, score });
+            const score = (0.55 * sim + 0.30 * pref + 0.15 * novelty) * freshness;
+            out.push({ track, score });
         }
+        return out;
+    },
 
-        candidates.sort((a, b) => b.score - a.score);
-        const pool = candidates.slice(0, POOL_SIZE);
+    _pickCandidate(seedFile) {
+        // Пробуем всё строже → мягче, чтобы не останавливаться на маленьких библиотеках
+        const attempts = [
+            { cooldown: true,  recent: RECO_HISTORY,        disliked: false },
+            { cooldown: false, recent: Math.min(4, RECO_HISTORY), disliked: false },
+            { cooldown: false, recent: 0,                   disliked: false },
+            { cooldown: false, recent: 0,                   disliked: true  },
+        ];
 
-        const queue = [];
-        while (queue.length < QUEUE_SIZE && pool.length > 0) {
-            const weights = pool.map(c => Math.max(0.05, c.score + 0.5));
-            const idx = weightedPick(weights);
-            queue.push(pool[idx].track);
-            pool.splice(idx, 1);
+        for (const opts of attempts) {
+            const pool = this._collectCandidates(seedFile, opts);
+            if (!pool.length) continue;
+
+            pool.sort((a, b) => b.score - a.score);
+            const top = pool.slice(0, POOL_SIZE);
+            const weights = top.map(c => Math.max(0.05, c.score + 0.5));
+            return top[weightedPick(weights)].track;
         }
+        return null;
+    },
 
-        this.queue = queue;
-        console.log('[Reco] queue:', queue.map(f => f.parsedTitle));
+    // Добираем очередь ДО пяти треков, не трогая уже стоящие в ней
+    refillQueue(seedFile) {
+        if (!tracks.length) { this.emit(); return; }
+        let seed = seedFile || this.current || null;
+        let guard = 0;
+
+        while (this.queue.length < QUEUE_SIZE && guard++ < QUEUE_SIZE * 4) {
+            const pick = this._pickCandidate(seed);
+            if (!pick) break;
+            this.queue.push(pick);
+            seed = pick;            // следующий трек подбираем от предыдущего — плавный переход
+        }
+        this.emit();
     },
 
     popNext() {
-        if (this.queue.length === 0) {
-            const seed = currentTrackGlobalIndex !== -1 ? tracks[currentTrackGlobalIndex] : null;
+        if (this.queue.length === 0) this.refillQueue(this.current);
 
-            // Пробуем собрать очередь от текущего трека
-            if (seed) this.buildQueue(seed);
+        let next = this.queue.shift() || null;
 
-            // Всё ещё пусто (маленькая библиотека / всё под карантином)?
-            // Берём что угодно, кроме сида и уже игравшего в сессии.
-            if (this.queue.length === 0) {
-                const exclude = new Set(sessionPlayed);
-                if (seed) exclude.add(this.key(seed));
-
-                let pool = tracks.filter(t => !exclude.has(this.key(t)));
-
-                // Если и тут пусто — сбрасываем сессию и играем что угодно
-                if (pool.length === 0) {
-                    sessionPlayed.clear();
-                    pool = seed ? tracks.filter(t => t !== seed) : tracks.slice();
-                }
-
-                if (pool.length) {
-                    this.queue.push(pool[Math.floor(Math.random() * pool.length)]);
-                }
+        // совсем край: библиотека крошечная / всё под фильтрами
+        if (!next && tracks.length) {
+            const exclude = new Set(this.queue.map(t => this.key(t)));
+            if (this.current) exclude.add(this.key(this.current));
+            let pool = tracks.filter(t => !exclude.has(this.key(t)));
+            if (!pool.length) {
+                sessionPlayed.clear();
+                pool = this.current ? tracks.filter(t => t !== this.current) : tracks.slice();
             }
+            if (pool.length) next = pool[Math.floor(Math.random() * pool.length)];
         }
 
-        const next = this.queue.shift() || null;
-        if (next) sessionPlayed.add(this.key(next));   // ← сразу помечаем
+        this.emit();
         return next;
     },
 
-    // ─── Events ─────────────────────────────────────────
-    onTrackStarted(file) {
-        const k = this.key(file);
-        this.recentKeys.unshift(k);
-        if (this.recentKeys.length > RECO_HISTORY) this.recentKeys.pop();
+    // ═══════════════════════════════════════════════════
+    //  HISTORY
+    // ═══════════════════════════════════════════════════
+    _pushHistory(file) {
+        // если пользователь вернулся назад и выбрал новый трек — "будущее" отрезаем
+        if (this.historyIndex >= 0 && this.historyIndex < this.history.length - 1) {
+            this.history.length = this.historyIndex + 1;
+        }
+        const last = this.history[this.history.length - 1];
+        if (!this.isSame(last, file)) {
+            this.history.push(file);
+            if (this.history.length > HISTORY_MAX) this.history.shift();
+        }
+        this.historyIndex = this.history.length - 1;
+    },
 
-        if (!this.queue.includes(file)) {
-            this.buildQueue(file);
-        } else {
-            const idx = this.queue.indexOf(file);
-            if (idx !== -1) this.queue.splice(0, idx + 1);
+    canGoBack()    { return this.historyIndex > 0; },
+    canGoForward() { return this.historyIndex >= 0 && this.historyIndex < this.history.length - 1; },
+
+    goBack() {
+        for (let i = this.historyIndex - 1; i >= 0; i--) {
+            if (this.isPlayable(this.history[i])) {
+                this.historyIndex = i;
+                this.current = this.history[i];
+                this.emit();
+                return this.history[i];
+            }
+        }
+        return null;
+    },
+
+    goForward() {
+        for (let i = this.historyIndex + 1; i < this.history.length; i++) {
+            if (this.isPlayable(this.history[i])) {
+                this.historyIndex = i;
+                this.current = this.history[i];
+                this.emit();
+                return this.history[i];
+            }
+        }
+        return null;
+    },
+
+    jumpToHistory(index) {
+        if (index < 0 || index >= this.history.length) return null;
+        const file = this.history[index];
+        if (!this.isPlayable(file)) return null;
+        this.historyIndex = index;
+        this.current = file;
+        this.emit();
+        return file;
+    },
+
+    // ═══════════════════════════════════════════════════
+    //  EVENTS
+    // ═══════════════════════════════════════════════════
+
+    // Старт волны (включение режима / смена библиотеки)
+    start(seedFile) {
+        this.queue = [];
+        if (seedFile) {
+            this.current = seedFile;
+            sessionPlayed.add(this.key(seedFile));
+            if (!this.isSame(this.history[this.historyIndex], seedFile)) {
+                this._pushHistory(seedFile);
+            }
+        }
+        this.refillQueue(seedFile || this.current);
+        this.emit();
+    },
+
+    reset() {
+        this.queue = [];
+        this.history = [];
+        this.historyIndex = -1;
+        this.current = null;
+        sessionPlayed.clear();
+        this.emit();
+    },
+
+    onTrackStarted(file, opts = {}) {
+        if (!file) return;
+        const k = this.key(file);
+        this.current = file;
+        sessionPlayed.add(k);
+
+        if (!opts.fromHistory) {
+            this._pushHistory(file);
         }
 
-        // Пре-фетч фич для текущего и следующих
-        this.ensureFeatures(file).then(() => {
-            if (this.queue.length < QUEUE_SIZE) this.buildQueue(file);
-        });
+        // трек уже стоял в очереди (клик по списку) — убираем, чтобы не задвоился
+        const qi = this.queue.findIndex(t => this.key(t) === k);
+        if (qi !== -1) this.queue.splice(qi, 1);
+
+        // главное: очередь не пересобирается, только добивается до QUEUE_SIZE
+        this.refillQueue(file);
+
+        // Пре-фетч фич для следующих
+        this.ensureFeatures(file);
         for (const next of this.queue.slice(0, 3)) this.ensureFeatures(next);
     },
 
@@ -297,7 +487,17 @@ const RecoEngine = {
         stat.vote = vote;
         this.stats.set(k, stat);
         this._persist(k);
-        this.buildQueue(file);
+
+        // дизлайк — выкидываем из очереди, если вдруг там оказался; добор без пересборки
+        if (vote === -1) {
+            this.queue = this.queue.filter(t => this.key(t) !== k);
+            if (this.queue.length < QUEUE_SIZE) this.refillQueue(this.current);
+        }
+        this.emit();
+    },
+
+    emit() {
+        if (typeof renderWavePanel === 'function') renderWavePanel();
     },
 };
 
@@ -311,6 +511,148 @@ function weightedPick(weights) {
         if (r <= 0) return i;
     }
     return weights.length - 1;
+}
+
+// ══════════════════════════════════════════════════════
+//  WAVE FULLSCREEN UI (очередь + история)
+// ══════════════════════════════════════════════════════
+function makeWaveRow({ index, file, state = '', onClick }) {
+    const row = document.createElement('div');
+    row.className = 'wv-row' + (state ? ' is-' + state : '');
+
+    const num = document.createElement('span');
+    num.className = 'wv-num';
+    num.textContent = String(index).padStart(2, '0');
+
+    const body = document.createElement('div');
+    body.className = 'wv-body';
+
+    const title = document.createElement('div');
+    title.className = 'wv-title';
+    title.textContent = file.parsedTitle || file.name;
+
+    const artist = document.createElement('div');
+    artist.className = 'wv-artist';
+    artist.textContent = (file.parsedArtists || []).join(', ');
+
+    // жанр — рядом с исполнителем, как в боковом списке
+    const genreId = (file.genres || [])[0];
+    if (genreId && window.KivoGenres) {
+        if (artist.textContent) artist.appendChild(document.createTextNode(' · '));
+        const g = document.createElement('span');
+        g.className = 'wv-genre';
+        g.textContent = window.KivoGenres.label(genreId);
+        artist.appendChild(g);
+    }
+
+    body.append(title, artist);
+    row.append(num, body);
+
+    if (state === 'current') {
+        const tag = document.createElement('span');
+        tag.className = 'wv-tag';
+        tag.textContent = 'сейчас';
+        row.appendChild(tag);
+    }
+
+    row.title = artist.textContent
+        ? `${title.textContent} — ${artist.textContent}`
+        : title.textContent;
+    row.addEventListener('click', onClick);
+    return row;
+}
+
+function makeWaveEmpty(text) {
+    const el = document.createElement('div');
+    el.className = 'wv-empty';
+    el.textContent = text;
+    return el;
+}
+
+function renderWavePanel() {
+    if (queueBadge) queueBadge.textContent = String(RecoEngine.queue.length);
+    if (!waveMode || !waveViewOpen) return;
+
+    const qList  = document.getElementById('wave-queue-list');
+    const hList  = document.getElementById('wave-history-list');
+    const qCount = document.getElementById('wave-queue-count');
+    const hCount = document.getElementById('wave-history-count');
+    const sub    = document.getElementById('wave-view-sub');
+    if (!qList || !hList) return;
+
+    qCount.textContent = String(RecoEngine.queue.length);
+    hCount.textContent = String(RecoEngine.history.length);
+    if (sub) {
+        sub.textContent = `${RecoEngine.queue.length} впереди · ${RecoEngine.history.length} в истории`;
+    }
+
+    // ── Далее (очередь) ──
+    const entering = document.body.classList.contains('wave-view-opening');
+    let enterIdx = 0;
+    const withDelay = (row) => {
+        if (entering) row.style.animationDelay = Math.min(enterIdx++ * 24, 260) + 'ms';
+        return row;
+    };
+
+    qList.innerHTML = '';
+    if (!RecoEngine.queue.length) {
+        qList.appendChild(makeWaveEmpty('Очередь пуста — нажми «следующий», чтобы собрать'));
+    } else {
+        RecoEngine.queue.forEach((file, i) => {
+            qList.appendChild(withDelay(makeWaveRow({
+                index: i + 1,
+                file,
+                state: 'next',
+                onClick: () => playFromQueue(i),
+            })));
+        });
+    }
+
+    // ── Играли (история, свежие сверху) ──
+    hList.innerHTML = '';
+    const hist = RecoEngine.history;
+    if (!hist.length) {
+        hList.appendChild(makeWaveEmpty('Пока ничего не играло'));
+    } else {
+        const start = Math.max(0, hist.length - HISTORY_UI_MAX);
+        for (let i = hist.length - 1; i >= start; i--) {
+            const state = i === RecoEngine.historyIndex
+                ? 'current'
+                : (i > RecoEngine.historyIndex ? 'future' : 'played');
+            hList.appendChild(withDelay(makeWaveRow({
+                index: i + 1,
+                file: hist[i],
+                state,
+                onClick: () => playFromHistory(i),
+            })));
+        }
+    }
+
+    // текущий трек всегда должен быть в зоне видимости (без микро-скроллов)
+    const scroll = document.getElementById('wave-view-scroll');
+    const curRow = hList.querySelector('.wv-row.is-current');
+    if (scroll && curRow) {
+        const r = curRow.getBoundingClientRect();
+        const c = scroll.getBoundingClientRect();
+        if (r.top < c.top - 40 || r.bottom > c.bottom + 40) {
+            curRow.scrollIntoView({ block: 'nearest' });
+        }
+    }
+}
+
+// Клик по треку в очереди: он играет, а всё что было выше — пропускаем
+function playFromQueue(index) {
+    const file = RecoEngine.queue[index];
+    if (!file) return;
+    RecoEngine.queue.splice(0, index + 1);
+    RecoEngine.emit();
+    playTrack(file);
+}
+
+// Клик по истории: возврат к тому, что уже играло
+function playFromHistory(index) {
+    const file = RecoEngine.jumpToHistory(index);
+    if (file) playTrack(file, { fromHistory: true });
 }
 
 // ─── Извлечение фич из аудио ─────────────────────────
